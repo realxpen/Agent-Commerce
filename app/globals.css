@@ -1,45 +1,52 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #050505;
-  --color-foreground: #ffffff;
-  --color-card: #0a0a0a;
-  --color-card-foreground: #ffffff;
-  --color-popover: #0a0a0a;
-  --color-popover-foreground: #ffffff;
-  --color-primary: #6366f1; /* Indigo 500 */
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #1f2937; /* Gray 800 */
-  --color-secondary-foreground: #ffffff;
-  --color-muted: #171717; /* Neutral 900 */
-  --color-muted-foreground: #a3a3a3; /* Neutral 400 */
-  --color-accent: #171717;
-  --color-accent-foreground: #ffffff;
-  --color-destructive: #ef4444; /* Red 500 */
-  --color-destructive-foreground: #ffffff;
-  --color-border: #262626; /* Neutral 800 */
-  --color-input: #262626;
-  --color-ring: #6366f1;
-  --radius: 0.5rem;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 3%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 3%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 263.4 70% 50.4%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 263.4 70% 50.4%;
+    --radius: 0.75rem;
+  }
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    @apply border-white/10;
   }
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-black text-white selection:bg-indigo-500/30;
   }
 }
 
-.glass-panel {
-  background: rgba(10, 10, 10, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+.glass {
+  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10;
 }
 
-.glow-accent {
-  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.3);
+.glass-card {
+  @apply bg-gradient-to-br from-white/[0.05] to-transparent backdrop-blur-md border border-white/10 shadow-2xl;
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50;
 }
