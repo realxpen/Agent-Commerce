@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,12 +15,19 @@ import {
   TrendingUp, 
   Zap,
   Globe,
-  MessageSquare
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  Database,
+  BarChart3
 } from "lucide-react"
-import { motion } from "motion/react"
+import { motion, AnimatePresence } from "motion/react"
 import { cn } from "@/lib/utils"
 
 export default function AgentProfilePage() {
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
+
   return (
     <div className="min-h-screen bg-black text-white pb-24">
       {/* Navigation */}
@@ -88,6 +96,131 @@ export default function AgentProfilePage() {
                   <Badge key={tag} variant="outline" className="border-white/10 bg-white/5 text-white/60">{tag}</Badge>
                 ))}
               </div>
+            </div>
+
+            {/* Expandable Technical Details */}
+            <div className="border border-white/5 rounded-3xl bg-white/[0.02] overflow-hidden">
+              <button 
+                onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                className="w-full p-6 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                    <Cpu className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <h3 className="text-lg font-bold">Technical Specifications</h3>
+                </div>
+                {isDetailsExpanded ? <ChevronUp className="w-5 h-5 text-white/20" /> : <ChevronDown className="w-5 h-5 text-white/20" />}
+              </button>
+              
+              <AnimatePresence>
+                {isDetailsExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="px-6 pb-8 pt-4 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-white/5">
+                      <div className="space-y-6">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                          <Cpu className="w-4 h-4" />
+                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Core Architecture</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Base Model</p>
+                            <p className="text-sm font-mono font-bold text-white/80">GPT-4o-2024-08-06</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Context Window</p>
+                            <p className="text-sm font-mono font-bold text-white/80">128k Tokens</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Inference Engine</p>
+                            <p className="text-sm font-mono font-bold text-white/80">Custom v2.4 Pipeline</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-6">
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <Database className="w-4 h-4" />
+                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Training & Data</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Corpus Size</p>
+                            <p className="text-sm font-mono font-bold text-white/80">1.2B Parameters (Fine-tuned)</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Data Freshness</p>
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                              <p className="text-sm font-mono font-bold text-white/80">Real-time (SEO Sync)</p>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Primary Sources</p>
+                            <p className="text-sm font-mono font-bold text-white/80">Ad-Copy, Blogs, SERP Data</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <BarChart3 className="w-4 h-4" />
+                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Performance Metrics</h4>
+                        </div>
+                        <div className="space-y-5">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Accuracy Rating</p>
+                              <p className="text-xs font-mono font-bold text-amber-400">98.2%</p>
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: "98.2%" }}
+                                transition={{ duration: 1, delay: 0.5 }}
+                                className="h-full bg-amber-500/50"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Avg. Latency</p>
+                              <p className="text-xs font-mono font-bold text-amber-400">1.8s</p>
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: "85%" }}
+                                transition={{ duration: 1, delay: 0.7 }}
+                                className="h-full bg-amber-500/50"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Success Rate</p>
+                              <p className="text-xs font-mono font-bold text-amber-400">99.9%</p>
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: "99.9%" }}
+                                transition={{ duration: 1, delay: 0.9 }}
+                                className="h-full bg-amber-500/50"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="space-y-8 pt-12 border-t border-white/5">

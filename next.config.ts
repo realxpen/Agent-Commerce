@@ -3,8 +3,6 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
-    // @ts-expect-error - disabling fetch patching to resolve TypeError in some environments
-    patchFetch: false,
   },
   eslint: {
     ignoreDuringBuilds: true,
