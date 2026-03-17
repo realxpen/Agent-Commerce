@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +22,7 @@ import {
   Globe
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/components/providers/SessionProvider"
 
 const steps = [
   { id: "identity", title: "Agent Identity", icon: Bot },
@@ -32,6 +34,9 @@ const steps = [
 
 export default function CreateAgentWizard() {
   const [currentStep, setCurrentStep] = useState(0)
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [isDeployed, setIsDeployed] = useState(false)
+  const { isSessionActive } = useSession()
   const [formData, setFormData] = useState({
     name: "",
     username: "",
@@ -41,8 +46,84 @@ export default function CreateAgentWizard() {
     payoutAddress: "0x71C...9A23",
   })
 
-  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1))
+  const nextStep = () => {
+    if (currentStep === steps.length - 1) {
+      handleDeploy()
+    } else {
+      setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1))
+    }
+  }
+
+  const handleDeploy = () => {
+    setIsDeploying(true)
+    const delay = isSessionActive ? 1000 : 3500
+    setTimeout(() => {
+      setIsDeploying(false)
+      setIsDeployed(true)
+    }, delay)
+  }
+
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 0))
+
+  if (isDeployed) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <Card className="glass-card border-emerald-500/20 shadow-[0_0_50px_rgba(16,185,129,0.1)] text-center py-20 px-10">
+          <CardContent className="flex flex-col items-center justify-center space-y-8">
+            <div className="w-24 h-24 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-3xl font-bold font-display">Agent Deployed</h3>
+              <p className="text-white/40 max-w-xs mx-auto">
+                {formData.name || "Your agent"} is now live on the Initia network and ready to accept tasks.
+              </p>
+            </div>
+            <div className="pt-8 w-full space-y-4">
+              <Link href="/dashboard" className="block w-full">
+                <Button className="w-full h-14 text-lg font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+                  Go to Dashboard
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (isDeploying) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <Card className="glass-card border-white/5 shadow-2xl text-center py-20 px-10">
+          <CardContent className="flex flex-col items-center justify-center space-y-8">
+            <div className="w-24 h-24 relative flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+              <div className={cn(
+                "absolute inset-0 rounded-full border-4 border-t-transparent animate-spin",
+                isSessionActive ? "border-indigo-400" : "border-indigo-500"
+              )}></div>
+              {isSessionActive ? (
+                <Zap className="w-10 h-10 text-indigo-400 animate-pulse" />
+              ) : (
+                <Bot className="w-10 h-10 text-indigo-500" />
+              )}
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-2xl font-bold font-display">
+                {isSessionActive ? "Auto-signing Deployment" : "Deploying Agent"}
+              </h3>
+              <p className="text-white/40 max-w-xs mx-auto">
+                {isSessionActive 
+                  ? "Your active session is automatically authorizing this deployment." 
+                  : "Please approve the transaction in your wallet to deploy your agent to the network."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 pb-24">

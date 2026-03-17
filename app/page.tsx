@@ -4,8 +4,10 @@ import Link from "next/link"
 import { motion } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { Bot, Zap, Shield, Globe, ArrowRight, TrendingUp, DollarSign, Activity } from "lucide-react"
+import { useSession } from "@/components/providers/SessionProvider"
 
 export default function LandingPage() {
+  const { isSessionActive } = useSession()
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
@@ -16,6 +18,12 @@ export default function LandingPage() {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-display font-bold text-xl tracking-tight">AgentCommerce</span>
+            {isSessionActive && (
+              <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1.5">
+                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Auto-Signing</span>
+              </div>
+            )}
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
             <Link href="#features" className="hover:text-white transition-colors">Features</Link>

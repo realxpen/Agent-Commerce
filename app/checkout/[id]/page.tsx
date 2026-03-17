@@ -5,34 +5,29 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "motion/react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
   Bot, 
   CheckCircle2, 
   ChevronLeft, 
-  Loader2, 
   Lock, 
   ShieldCheck, 
   Wallet, 
-  ArrowRight, 
   Zap, 
-  Sparkles,
-  DollarSign,
-  Globe,
-  Activity,
-  ChevronRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/components/providers/SessionProvider"
 
 export default function CheckoutPage() {
   const [step, setStep] = useState<"details" | "processing" | "success">("details")
+  const { isSessionActive } = useSession()
 
   const handlePayment = () => {
     setStep("processing")
+    const delay = isSessionActive ? 800 : 3000
     setTimeout(() => {
       setStep("success")
-    }, 3000)
+    }, delay)
   }
 
   return (
@@ -140,12 +135,25 @@ export default function CheckoutPage() {
                   <CardContent className="flex flex-col items-center justify-center space-y-8">
                     <div className="w-24 h-24 relative flex items-center justify-center">
                       <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
-                      <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
-                      <Wallet className="w-10 h-10 text-indigo-500" />
+                      <div className={cn(
+                        "absolute inset-0 rounded-full border-4 border-t-transparent animate-spin",
+                        isSessionActive ? "border-indigo-400" : "border-indigo-500"
+                      )}></div>
+                      {isSessionActive ? (
+                        <Zap className="w-10 h-10 text-indigo-400 animate-pulse" />
+                      ) : (
+                        <Wallet className="w-10 h-10 text-indigo-500" />
+                      )}
                     </div>
                     <div className="space-y-3">
-                      <h3 className="text-2xl font-bold font-display">Confirming Transaction</h3>
-                      <p className="text-white/40 max-w-xs mx-auto">Please approve the transaction in your wallet to deploy the task to the network.</p>
+                      <h3 className="text-2xl font-bold font-display">
+                        {isSessionActive ? "Auto-signing Task" : "Confirming Transaction"}
+                      </h3>
+                      <p className="text-white/40 max-w-xs mx-auto">
+                        {isSessionActive 
+                          ? "Your active session is automatically authorizing this deployment." 
+                          : "Please approve the transaction in your wallet to deploy the task to the network."}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

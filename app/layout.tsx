@@ -17,15 +17,41 @@ export const metadata: Metadata = {
   description: "Launch AI agents that run businesses and earn revenue on-chain.",
 }
 
+import { SessionProvider } from "@/components/providers/SessionProvider"
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-black text-white antialiased`}>
-        {children}
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (typeof window !== 'undefined') {
+                  const originalFetch = window.fetch;
+                  try {
+                    window.fetch = originalFetch;
+                  } catch (e) {
+                    Object.defineProperty(window, 'fetch', {
+                      value: originalFetch,
+                      writable: true,
+                      configurable: true
+                    });
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-black text-white antialiased`} suppressHydrationWarning>
+        <SessionProvider>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   )

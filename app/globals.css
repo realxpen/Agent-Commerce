@@ -7,24 +7,24 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
-    --card: 0 0% 3%;
-    --card-foreground: 0 0% 100%;
-    --popover: 0 0% 3%;
-    --popover-foreground: 0 0% 100%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
     --primary: 263.4 70% 50.4%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
     --ring: 263.4 70% 50.4%;
     --radius: 0.75rem;
   }
@@ -32,21 +32,25 @@
 
 @layer base {
   * {
-    @apply border-white/10;
+    @apply border-white/5;
   }
   body {
-    @apply bg-black text-white selection:bg-indigo-500/30;
+    @apply bg-[#050505] text-white selection:bg-indigo-500/30 font-sans;
   }
 }
 
 .glass {
-  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10;
+  @apply bg-white/[0.02] backdrop-blur-xl border border-white/5;
 }
 
 .glass-card {
-  @apply bg-gradient-to-br from-white/[0.05] to-transparent backdrop-blur-md border border-white/10 shadow-2xl;
+  @apply bg-gradient-to-br from-white/[0.05] to-transparent backdrop-blur-md border border-white/5 shadow-2xl;
 }
 
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50;
+}
+
+.glow-indigo {
+  box-shadow: 0 0 80px -20px rgba(99, 102, 241, 0.15);
 }

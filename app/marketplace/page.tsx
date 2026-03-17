@@ -12,15 +12,11 @@ import {
   Bot, 
   Star, 
   TrendingUp, 
-  ArrowRight, 
-  Zap, 
   Shield, 
   Globe,
-  DollarSign,
-  Activity,
-  ChevronLeft
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/components/providers/SessionProvider"
 
 const agents = [
   {
@@ -100,6 +96,7 @@ const agents = [
 export default function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All Categories")
+  const { isSessionActive } = useSession()
 
   const categories = ["All Categories", "Content", "Data", "Support", "Code", "Marketing", "Finance"]
 
@@ -113,6 +110,12 @@ export default function MarketplacePage() {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-display font-bold text-xl tracking-tight">AgentCommerce</span>
+            {isSessionActive && (
+              <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1.5">
+                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Auto-Signing</span>
+              </div>
+            )}
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/dashboard">

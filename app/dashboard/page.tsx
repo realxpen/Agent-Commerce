@@ -1,25 +1,47 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
-  ArrowUpRight, 
   Bot, 
   Activity, 
   DollarSign, 
   Users, 
-  TrendingUp, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle,
   ChevronRight,
   Zap
 } from "lucide-react"
-import { motion } from "motion/react"
+import { motion, AnimatePresence } from "motion/react"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/components/providers/SessionProvider"
 
 export default function DashboardPage() {
+  const { isSessionActive } = useSession()
+  const [activities, setActivities] = useState([
+    { id: 1, agent: "Copywriter AI", action: "Completed blog post", amount: "+$150.00", time: "2m ago", status: "success" },
+    { id: 2, agent: "Support Bot", action: "Resolved ticket #492", amount: "+$5.00", time: "15m ago", status: "success" },
+    { id: 3, agent: "Data Scraper", action: "Delivered CSV export", amount: "+$45.00", time: "1h ago", status: "success" },
+    { id: 4, agent: "Copywriter AI", action: "Completed landing page copy", amount: "+$300.00", time: "3h ago", status: "success" },
+    { id: 5, agent: "Financial Analyst", action: "Report generation failed", amount: "$0.00", time: "5h ago", status: "failed" },
+  ])
+
+  // Simulate autonomous activity
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newActivity = {
+        id: Date.now(),
+        agent: ["Copywriter AI", "Support Bot", "Data Scraper", "Financial Analyst"][Math.floor(Math.random() * 4)],
+        action: ["Processed payment", "Updated treasury", "Completed task", "Signed transaction"][Math.floor(Math.random() * 4)],
+        time: "Just now",
+        status: Math.random() > 0.1 ? "success" : "failed",
+        amount: `+$${(Math.random() * 100).toFixed(2)}`
+      }
+      setActivities(prev => [newActivity, ...prev.slice(0, 4)])
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -107,7 +129,14 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3 glass-card border-white/5">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-lg font-bold">Live Activity</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg font-bold">Live Activity</CardTitle>
+                {isSessionActive && (
+                  <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-[10px] animate-pulse">
+                    Auto-Signing
+                  </Badge>
+                )}
+              </div>
               <CardDescription className="text-white/40">Real-time agent task stream.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40">
@@ -116,31 +145,34 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {[
-                { agent: "Copywriter AI", action: "Completed blog post", amount: "+$150.00", time: "2m ago", status: "success" },
-                { agent: "Support Bot", action: "Resolved ticket #492", amount: "+$5.00", time: "15m ago", status: "success" },
-                { agent: "Data Scraper", action: "Delivered CSV export", amount: "+$45.00", time: "1h ago", status: "success" },
-                { agent: "Copywriter AI", action: "Completed landing page copy", amount: "+$300.00", time: "3h ago", status: "success" },
-                { agent: "Financial Analyst", action: "Report generation failed", amount: "$0.00", time: "5h ago", status: "failed" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover:border-white/10 transition-colors">
-                      <Bot className="w-5 h-5 text-indigo-400" />
+              <AnimatePresence mode="popLayout">
+                {activities.map((item) => (
+                  <motion.div 
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover:border-white/10 transition-colors">
+                        <Bot className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold leading-none">{item.agent}</p>
+                        <p className="text-xs text-white/40 mt-1.5">{item.action}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold leading-none">{item.agent}</p>
-                      <p className="text-xs text-white/40 mt-1.5">{item.action}</p>
+                    <div className="text-right">
+                      <p className={item.status === "success" ? "text-sm font-bold text-emerald-400" : "text-sm font-bold text-rose-400"}>
+                        {item.amount}
+                      </p>
+                      <p className="text-[10px] text-white/20 mt-1 font-medium uppercase">{item.time}</p>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={item.status === "success" ? "text-sm font-bold text-emerald-400" : "text-sm font-bold text-rose-400"}>
-                      {item.amount}
-                    </p>
-                    <p className="text-[10px] text-white/20 mt-1 font-medium uppercase">{item.time}</p>
-                  </div>
-                </div>
-              ))}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </CardContent>
         </Card>

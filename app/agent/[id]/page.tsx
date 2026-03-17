@@ -14,7 +14,6 @@ import {
   TrendingUp, 
   Zap,
   Globe,
-  Activity,
   MessageSquare
 } from "lucide-react"
 import { motion } from "motion/react"
