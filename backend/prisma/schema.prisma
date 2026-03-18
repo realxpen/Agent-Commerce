@@ -1,0 +1,558 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum WalletType {
+  EXTERNAL
+  EMBEDDED
+  SESSION
+  TREASURY
+}
+
+enum WalletStatus {
+  ACTIVE
+  DISCONNECTED
+  BLOCKED
+}
+
+enum AgentStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AgentPricingModel {
+  FIXED_PRICE
+  USAGE_BASED
+  SUBSCRIPTION
+  CUSTOM
+}
+
+enum AgentServiceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  IN_PROGRESS
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_PROGRESS
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  CONFIRMED
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum PaymentConfirmationStatus {
+  UNCONFIRMED
+  CONFIRMING
+  CONFIRMED
+  FINALIZED
+  FAILED
+}
+
+enum TreasuryPeriod {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum AgentTaskType {
+  ORDER_FULFILLMENT
+  CUSTOMER_SUPPORT
+  TREASURY_AUTOMATION
+  ANALYTICS
+  CUSTOM
+}
+
+enum AgentTaskStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum TaskTriggerType {
+  MANUAL
+  ORDER_CREATED
+  PAYMENT_CONFIRMED
+  DELIVERY_REQUESTED
+  SCHEDULED
+  WEBHOOK
+}
+
+enum TaskRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  RETRYING
+  CANCELED
+  TIMED_OUT
+}
+
+enum ContractEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum ContractType {
+  AGENT_REGISTRY
+  MARKETPLACE
+  TREASURY
+  SESSION_APPROVAL
+  UNKNOWN
+}
+
+enum SessionApprovalType {
+  ONE_TIME
+  SESSION
+  AUTO_SIGN
+}
+
+enum SessionApprovalStatus {
+  PENDING
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+  REJECTED
+}
+
+enum AuditEntityType {
+  USER
+  WALLET
+  AGENT
+  AGENT_SERVICE
+  ORDER
+  PAYMENT
+  TREASURY_SNAPSHOT
+  AGENT_TASK
+  TASK_RUN
+  CONTRACT_EVENT
+  SESSION_APPROVAL
+  SYSTEM
+}
+
+enum AuditSource {
+  API
+  WORKER
+  INDEXER
+  WEBHOOK
+  USER
+  SYSTEM
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String?           @unique
+  displayName      String?
+  avatarUrl        String?
+  status           UserStatus        @default(ACTIVE)
+  metadata         Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  wallets          Wallet[]
+  ownedAgents      Agent[]           @relation("AgentOwner")
+  customerOrders   Order[]           @relation("CustomerOrders")
+  sessionApprovals SessionApproval[]
+  auditLogs        AuditLog[]        @relation("AuditLogActorUser")
+
+  @@index([status, createdAt])
+}
+
+model Wallet {
+  id                String             @id @default(cuid())
+  userId            String?
+  agentId           String?
+  chainId           String
+  address           String
+  label             String?
+  type              WalletType         @default(EXTERNAL)
+  status            WalletStatus       @default(ACTIVE)
+  isPrimary         Boolean            @default(false)
+  metadata          Json?
+  lastUsedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agent             Agent?             @relation("AgentWallets", fields: [agentId], references: [id], onDelete: SetNull)
+  payerPayments     Payment[]          @relation("PaymentPayerWallet")
+  recipientPayments Payment[]          @relation("PaymentRecipientWallet")
+  treasurySnapshots TreasurySnapshot[]
+  sessionApprovals  SessionApproval[]
+  auditLogs         AuditLog[]         @relation("AuditLogActorWallet")
+
+  @@unique([chainId, address])
+  @@index([userId, isPrimary])
+  @@index([agentId, type])
+  @@index([status, lastUsedAt])
+}
+
+model Agent {
+  id               String             @id @default(cuid())
+  ownerId          String
+  name             String
+  slug             String             @unique
+  category         String
+  description      String
+  pricingModel     AgentPricingModel
+  status           AgentStatus        @default(DRAFT)
+  appchainId       String?
+  contractAddress  String?            @unique
+  treasuryAddress  String
+  initUsername     String?
+  metadata         Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  owner            User               @relation("AgentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  wallets          Wallet[]           @relation("AgentWallets")
+  services         AgentService[]
+  orders           Order[]
+  payments         Payment[]
+  treasurySnapshots TreasurySnapshot[]
+  tasks            AgentTask[]
+  contractEvents   ContractEvent[]
+  sessionApprovals SessionApproval[]
+  auditLogs        AuditLog[]
+
+  @@index([ownerId, status])
+  @@index([ownerId, category])
+  @@index([status, category])
+  @@index([status, createdAt])
+}
+
+model AgentService {
+  id                       String             @id @default(cuid())
+  agentId                  String
+  slug                     String
+  title                    String
+  description              String?
+  status                   AgentServiceStatus @default(DRAFT)
+  priceAmount              Decimal            @db.Decimal(36, 18)
+  priceCurrency            String?
+  priceDenom               String
+  estimatedDeliveryMinutes Int?
+  metadata                 Json?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  agent                    Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  orders                   Order[]
+  tasks                    AgentTask[]
+
+  @@unique([agentId, slug])
+  @@index([agentId, status])
+}
+
+model Order {
+  id                   String             @id @default(cuid())
+  customerId           String
+  agentId              String
+  agentServiceId       String
+  status               OrderStatus        @default(PENDING)
+  paymentStatus        OrderPaymentStatus @default(UNPAID)
+  deliveryStatus       DeliveryStatus     @default(PENDING)
+  serviceTitleSnapshot String
+  serviceSnapshot      Json
+  quantity             Int                @default(1)
+  quotedPriceAmount    Decimal            @db.Decimal(36, 18)
+  finalPaidAmount      Decimal?           @db.Decimal(36, 18)
+  currency             String?
+  denom                String
+  customerNote         String?
+  deliveryUrl          String?
+  deliveryText         String?
+  paymentReference     String?
+  txHash               String?
+  expectedPaymentInfo  Json?
+  paidAt               DateTime?
+  deliveredAt          DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  failedAt             DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  customer             User               @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  agent                Agent              @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  service              AgentService       @relation(fields: [agentServiceId], references: [id], onDelete: Restrict)
+  payments             Payment[]
+  taskRuns             TaskRun[]
+  contractEvents       ContractEvent[]
+  auditLogs            AuditLog[]
+
+  @@index([customerId, createdAt])
+  @@index([customerId, status])
+  @@index([agentId, status, createdAt])
+  @@index([paymentStatus, deliveryStatus])
+  @@index([agentServiceId, createdAt])
+  @@index([paymentReference])
+  @@index([txHash])
+}
+
+model Payment {
+  id                  String                    @id @default(cuid())
+  orderId             String
+  agentId             String
+  payerWalletId       String?
+  recipientWalletId   String?
+  chainId             String
+  paymentReference    String?
+  txHash              String?                   @unique
+  amount              Decimal                   @db.Decimal(36, 18)
+  feeAmount           Decimal                   @default(0) @db.Decimal(36, 18)
+  currency            String?
+  denom               String
+  payerAddress        String
+  recipientAddress    String
+  status              PaymentStatus             @default(INITIATED)
+  confirmationStatus  PaymentConfirmationStatus @default(UNCONFIRMED)
+  confirmationCount   Int                       @default(0)
+  blockHeight         BigInt?
+  confirmedAt         DateTime?
+  finalizedAt         DateTime?
+  failureReason       String?
+  metadata            Json?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  order               Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  agent               Agent                     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  payerWallet         Wallet?                   @relation("PaymentPayerWallet", fields: [payerWalletId], references: [id], onDelete: SetNull)
+  recipientWallet     Wallet?                   @relation("PaymentRecipientWallet", fields: [recipientWalletId], references: [id], onDelete: SetNull)
+  contractEvents      ContractEvent[]
+  auditLogs           AuditLog[]
+
+  @@index([orderId, status])
+  @@index([agentId, status, createdAt])
+  @@index([paymentReference])
+  @@index([confirmationStatus, createdAt])
+  @@index([chainId, payerAddress])
+  @@index([chainId, recipientAddress])
+}
+
+model TreasurySnapshot {
+  id               String         @id @default(cuid())
+  agentId          String
+  walletId         String?
+  period           TreasuryPeriod
+  snapshotAt       DateTime
+  windowStart      DateTime
+  windowEnd        DateTime
+  currency         String?
+  denom            String
+  totalBalance     Decimal        @db.Decimal(36, 18)
+  availableBalance Decimal        @db.Decimal(36, 18)
+  pendingBalance   Decimal        @default(0) @db.Decimal(36, 18)
+  grossRevenue     Decimal        @default(0) @db.Decimal(36, 18)
+  netRevenue       Decimal        @default(0) @db.Decimal(36, 18)
+  refundAmount     Decimal        @default(0) @db.Decimal(36, 18)
+  orderCount       Int            @default(0)
+  paymentCount     Int            @default(0)
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  agent            Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  wallet           Wallet?        @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@unique([agentId, period, snapshotAt, denom])
+  @@index([agentId, windowStart, windowEnd])
+  @@index([walletId, snapshotAt])
+}
+
+model AgentTask {
+  id             String          @id @default(cuid())
+  agentId        String
+  agentServiceId String?
+  name           String
+  slug           String
+  description    String?
+  type           AgentTaskType
+  triggerType    TaskTriggerType
+  status         AgentTaskStatus @default(ACTIVE)
+  provider       String?
+  model          String?
+  config         Json?
+  inputSchema    Json?
+  outputSchema   Json?
+  maxRetries     Int             @default(3)
+  timeoutSeconds Int             @default(300)
+  lastRunAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  agent          Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  service        AgentService?   @relation(fields: [agentServiceId], references: [id], onDelete: SetNull)
+  taskRuns       TaskRun[]
+
+  @@unique([agentId, slug])
+  @@index([agentId, status])
+  @@index([agentServiceId, status])
+  @@index([triggerType, status])
+}
+
+model TaskRun {
+  id             String        @id @default(cuid())
+  agentTaskId    String
+  orderId        String?
+  queueJobId     String?       @unique
+  idempotencyKey String?       @unique
+  status         TaskRunStatus @default(QUEUED)
+  attemptNumber  Int           @default(1)
+  maxAttempts    Int           @default(3)
+  input          Json?
+  output         Json?
+  errorMessage   String?
+  errorDetails   Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  nextRetryAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  agentTask      AgentTask     @relation(fields: [agentTaskId], references: [id], onDelete: Cascade)
+  order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  auditLogs      AuditLog[]
+
+  @@index([agentTaskId, status, createdAt])
+  @@index([orderId, createdAt])
+  @@index([status, nextRetryAt])
+}
+
+model ContractEvent {
+  id                 String              @id @default(cuid())
+  eventKey           String              @unique
+  chainId            String
+  contractType       ContractType        @default(UNKNOWN)
+  contractAddress    String
+  txHash             String
+  blockHeight        BigInt
+  blockTimestamp     DateTime?
+  eventName          String
+  eventIndex         Int?
+  status             ContractEventStatus @default(PENDING)
+  agentId            String?
+  orderId            String?
+  paymentId          String?
+  rawPayload         Json?
+  parsedPayload      Json
+  processingAttempts Int                 @default(0)
+  processedAt        DateTime?
+  errorMessage       String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  agent              Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  order              Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payment            Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([contractAddress, blockHeight])
+  @@index([chainId, txHash])
+  @@index([status, blockHeight])
+  @@index([agentId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([paymentId, createdAt])
+}
+
+model SessionApproval {
+  id               String                @id @default(cuid())
+  userId           String
+  walletId         String?
+  agentId          String?
+  chainId          String
+  approvalType     SessionApprovalType
+  status           SessionApprovalStatus @default(PENDING)
+  approvalKey      String                @unique
+  sessionPublicKey String?
+  scope            Json?
+  signature        String?
+  approvalTxHash   String?
+  metadata         Json?
+  approvedAt       DateTime?
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet           Wallet?               @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  agent            Agent?                @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  auditLogs        AuditLog[]
+
+  @@index([userId, status, expiresAt])
+  @@index([walletId, status])
+  @@index([agentId, status])
+  @@index([approvalTxHash])
+}
+
+model AuditLog {
+  id                String          @id @default(cuid())
+  actorUserId       String?
+  actorWalletId     String?
+  agentId           String?
+  orderId           String?
+  paymentId         String?
+  taskRunId         String?
+  sessionApprovalId String?
+  entityType        AuditEntityType
+  entityId          String
+  action            String
+  source            AuditSource     @default(SYSTEM)
+  message           String?
+  requestId         String?
+  ipAddress         String?
+  userAgent         String?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+  actorUser         User?           @relation("AuditLogActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorWallet       Wallet?         @relation("AuditLogActorWallet", fields: [actorWalletId], references: [id], onDelete: SetNull)
+  agent             Agent?          @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  order             Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payment           Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  taskRun           TaskRun?        @relation(fields: [taskRunId], references: [id], onDelete: SetNull)
+  sessionApproval   SessionApproval? @relation(fields: [sessionApprovalId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([paymentId, createdAt])
+}

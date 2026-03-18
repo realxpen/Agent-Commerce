@@ -1,324 +1,368 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { 
-  Bot, 
-  CheckCircle2, 
-  ChevronLeft, 
-  Clock, 
-  ShieldCheck, 
-  Star, 
-  TrendingUp, 
-  Zap,
+import { useParams } from "next/navigation"
+import {
+  BarChart3,
+  Bot,
+  Coins,
   Globe,
-  MessageSquare,
-  ChevronDown,
-  ChevronUp,
-  Cpu,
-  Database,
-  BarChart3
+  ShoppingBag,
+  Wallet,
 } from "lucide-react"
-import { motion, AnimatePresence } from "motion/react"
-import { cn } from "@/lib/utils"
+import { AgentServiceCard } from "@/components/agents/AgentServiceCard"
+import { WalletActionButton } from "@/components/guards"
+import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
+import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
+import { SessionApprovalCard } from "@/components/session"
+import { SkeletonBlock, StatusNoticeCard } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton"
+import { useAgentProfile } from "@/hooks/agents"
+import { getApiErrorMessage, getApiErrorTitle } from "@/lib/api"
+import { buildCheckoutHref } from "@/lib/orders/checkout"
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: typeof Coins
+}) {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
+          <Icon className="h-5 w-5 text-indigo-400" />
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+            {label}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function AgentProfilePage() {
-  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
+  const params = useParams<{ id: string }>()
+  const agentId = params?.id ?? ""
+  const profile = useAgentProfile(agentId)
+
+  if (profile.isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white pb-24">
+        <main className="container mx-auto px-6 pt-32">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <SkeletonBlock className="glass-card h-[520px] rounded-3xl lg:col-span-2" />
+            <SkeletonBlock className="glass-card h-[420px] rounded-3xl" />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (profile.isError || !profile.agent) {
+    return (
+      <div className="min-h-screen bg-black text-white pb-24">
+        <main className="container mx-auto px-6 pt-32">
+          <div className="space-y-4">
+            <StatusNoticeCard
+              tone="danger"
+              title={getApiErrorTitle(profile.error) || "Agent unavailable"}
+              description={getApiErrorMessage(profile.error)}
+              actionLabel="Retry"
+              onAction={() => profile.refetch().then(() => undefined)}
+            />
+            <Link href="/marketplace">
+              <Button>Back to Marketplace</Button>
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  const { agent } = profile
+  const stats = profile.dashboardStats
+  const revenueValue = stats ? `${stats.totals.netRevenue} ${stats.treasury.denom ?? ""}`.trim() : "Stats syncing"
+  const ordersValue = stats
+    ? String(stats.totals.totalOrders)
+    : String(agent.orderCount)
+  const servicesValue = stats
+    ? String(stats.totals.totalAgents > 0 ? agent.serviceCount : agent.serviceCount)
+    : String(agent.serviceCount)
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
-      {/* Navigation */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/marketplace" className="flex items-center gap-2 text-white/40 hover:text-white transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-            <span className="font-medium text-sm">Back to Marketplace</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600"></div>
-              <span className="text-xs font-bold font-mono">0x71C...9A23</span>
-            </div>
-          </div>
+      <header className="fixed top-0 z-50 w-full border-b border-white/5 bg-black/50 backdrop-blur-xl">
+        <div className="container mx-auto flex h-16 items-center justify-between px-6">
+          <HeaderBackLink href="/marketplace" label="Back to Marketplace" />
+          <WalletSessionControls surface="agent_profile" showRemaining />
         </div>
       </header>
 
       <main className="container mx-auto px-6 pt-32">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          
-          {/* Left Column: Profile Info */}
-          <div className="lg:col-span-2 space-y-12">
-            <div className="flex flex-col md:flex-row items-start gap-8">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-32 h-32 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 shadow-[0_0_40px_rgba(79,70,229,0.15)]"
-              >
-                <Bot className="w-16 h-16 text-indigo-500" />
-              </motion.div>
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
+          <div className="space-y-10 lg:col-span-2">
+            <div className="flex flex-col gap-8 md:flex-row md:items-start">
+              <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-3xl border border-indigo-500/20 bg-indigo-500/10 shadow-[0_0_40px_rgba(79,70,229,0.15)]">
+                <Bot className="h-16 w-16 text-indigo-500" />
+              </div>
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tight">Copywriter Pro</h1>
-                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold uppercase tracking-widest text-[10px] px-2 py-0.5">
-                    <ShieldCheck className="w-3 h-3 mr-1" />
-                    Verified Agent
+                  <h1 className="text-4xl font-display font-bold tracking-tight md:text-5xl">
+                    {agent.name}
+                  </h1>
+                  <Badge className="border-emerald-500/20 bg-emerald-500/10 text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                    {agent.status}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-white/10 bg-white/5 text-[10px] uppercase tracking-widest text-white/60"
+                  >
+                    {agent.category}
                   </Badge>
                 </div>
-                <p className="text-xl text-indigo-400 font-medium">@copywriter_pro</p>
-                <div className="flex flex-wrap items-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    <span className="font-bold">4.9</span>
-                    <span className="text-white/40">(128 reviews)</span>
+                <p className="text-xl font-medium text-indigo-400">
+                  {agent.initUsername ? `@${agent.initUsername}` : agent.slug}
+                </p>
+                <p className="max-w-3xl text-lg leading-relaxed text-white/60">
+                  {agent.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCard label="Net Revenue" value={revenueValue} icon={Coins} />
+              <StatCard label="Orders" value={ordersValue} icon={ShoppingBag} />
+              <StatCard label="Services" value={servicesValue} icon={BarChart3} />
+            </div>
+
+            {!profile.statsUnavailable && stats ? (
+              <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-display font-bold">
+                      Backend stats
+                    </h2>
+                    <p className="mt-1 text-white/45">
+                      Dashboard totals from the backend analytics layer.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-emerald-400" />
-                    <span className="text-white/40"><span className="text-white font-bold">$12k+</span> earned</span>
+                  <Badge variant="outline" className="border-white/10 bg-white/5">
+                    {stats.range}
+                  </Badge>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+                      Gross Revenue
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {stats.totals.grossRevenue}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-indigo-400" />
-                    <span className="text-white/40">Avg. delivery: <span className="text-white font-bold">2 mins</span></span>
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+                      Available Balance
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {stats.treasury.availableBalance}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+                      Pending Revenue
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {stats.totals.pendingRevenue}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-6">
+                <h2 className="text-2xl font-display font-bold">
+                  Backend stats
+                </h2>
+                <p className="mt-2 text-white/45">
+                  Revenue and treasury analytics will appear here when the backend
+                  dashboard endpoint is available.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-6">
-              <h2 className="text-2xl font-display font-bold">About this agent</h2>
-              <p className="text-white/60 leading-relaxed text-lg max-w-3xl">
-                I am an advanced AI copywriter specialized in creating high-converting landing page copy, engaging blog posts, and persuasive email sequences. Trained on top-performing marketing campaigns, I analyze your target audience and product to generate copy that drives action.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-2">
-                {["SEO Optimization", "Conversion Focus", "Multi-lingual", "Brand Voice Sync"].map((tag) => (
-                  <Badge key={tag} variant="outline" className="border-white/10 bg-white/5 text-white/60">{tag}</Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Expandable Technical Details */}
-            <div className="border border-white/5 rounded-3xl bg-white/[0.02] overflow-hidden">
-              <button 
-                onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-                className="w-full p-6 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                    <Cpu className="w-4 h-4 text-indigo-400" />
-                  </div>
-                  <h3 className="text-lg font-bold">Technical Specifications</h3>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-display font-bold">
+                    Services
+                  </h2>
+                  <p className="mt-1 text-white/45">
+                    Live services fetched from the backend for this agent.
+                  </p>
                 </div>
-                {isDetailsExpanded ? <ChevronUp className="w-5 h-5 text-white/20" /> : <ChevronDown className="w-5 h-5 text-white/20" />}
-              </button>
-              
-              <AnimatePresence>
-                {isDetailsExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
-                    <div className="px-6 pb-8 pt-4 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-white/5">
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2 text-indigo-400">
-                          <Cpu className="w-4 h-4" />
-                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Core Architecture</h4>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Base Model</p>
-                            <p className="text-sm font-mono font-bold text-white/80">GPT-4o-2024-08-06</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Context Window</p>
-                            <p className="text-sm font-mono font-bold text-white/80">128k Tokens</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Inference Engine</p>
-                            <p className="text-sm font-mono font-bold text-white/80">Custom v2.4 Pipeline</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2 text-emerald-400">
-                          <Database className="w-4 h-4" />
-                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Training & Data</h4>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Corpus Size</p>
-                            <p className="text-sm font-mono font-bold text-white/80">1.2B Parameters (Fine-tuned)</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Data Freshness</p>
-                            <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                              <p className="text-sm font-mono font-bold text-white/80">Real-time (SEO Sync)</p>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">Primary Sources</p>
-                            <p className="text-sm font-mono font-bold text-white/80">Ad-Copy, Blogs, SERP Data</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2 text-amber-400">
-                          <BarChart3 className="w-4 h-4" />
-                          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em]">Performance Metrics</h4>
-                        </div>
-                        <div className="space-y-5">
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-end">
-                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Accuracy Rating</p>
-                              <p className="text-xs font-mono font-bold text-amber-400">98.2%</p>
-                            </div>
-                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: "98.2%" }}
-                                transition={{ duration: 1, delay: 0.5 }}
-                                className="h-full bg-amber-500/50"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-end">
-                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Avg. Latency</p>
-                              <p className="text-xs font-mono font-bold text-amber-400">1.8s</p>
-                            </div>
-                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: "85%" }}
-                                transition={{ duration: 1, delay: 0.7 }}
-                                className="h-full bg-amber-500/50"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-end">
-                              <p className="text-[10px] text-white/40 uppercase tracking-wider">Success Rate</p>
-                              <p className="text-xs font-mono font-bold text-amber-400">99.9%</p>
-                            </div>
-                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: "99.9%" }}
-                                transition={{ duration: 1, delay: 0.9 }}
-                                className="h-full bg-amber-500/50"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="space-y-8 pt-12 border-t border-white/5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-display font-bold">Recent Deliveries</h2>
-                <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">View All</Button>
+                <Badge
+                  variant="outline"
+                  className="border-white/10 bg-white/5 text-white/60"
+                >
+                  {profile.services.length} listed
+                </Badge>
               </div>
-              <div className="space-y-4">
-                {[
-                  { title: "SaaS Landing Page Copy", client: "0x4A2...1B9C", rating: 5, time: "2 hours ago", amount: "50 USDC" },
-                  { title: "Weekly Newsletter (4 emails)", client: "0x9F1...E32A", rating: 5, time: "1 day ago", amount: "150 USDC" },
-                  { title: "Product Launch Thread", client: "0x2C8...D74F", rating: 4, time: "3 days ago", amount: "25 USDC" },
-                ].map((job, i) => (
-                  <div key={i} className="p-6 rounded-2xl border border-white/5 bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.04] transition-colors group">
-                    <div>
-                      <h4 className="font-bold text-lg mb-1 group-hover:text-indigo-400 transition-colors">{job.title}</h4>
-                      <div className="flex items-center gap-3 text-xs text-white/40">
-                        <span className="font-mono">Client: {job.client}</span>
-                        <span>•</span>
-                        <span>{job.time}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6 sm:text-right">
-                      <div className="space-y-1">
-                        <div className="flex items-center sm:justify-end gap-1">
-                          {[...Array(5)].map((_, j) => (
-                            <Star key={j} className={`w-3 h-3 ${j < job.rating ? "text-amber-500 fill-amber-500" : "text-white/10"}`} />
-                          ))}
-                        </div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Client Rating</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-bold text-emerald-400">{job.amount}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Settled</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+
+              {profile.servicesQuery.isLoading ? (
+                <div className="grid gap-4">
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <SkeletonBlock
+                      key={index}
+                      className="h-[220px]"
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {!profile.servicesQuery.isLoading && !profile.servicesUnavailable && profile.services.length > 0 ? (
+                <div className="grid gap-4">
+                  {profile.services.map((service) => (
+                    <AgentServiceCard
+                      key={service.id}
+                      service={service}
+                      cta={{
+                        ...profile.orderCta,
+                        href: profile.orderCta.disabled
+                          ? null
+                          : buildCheckoutHref({
+                              agent,
+                              service,
+                            }),
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {!profile.servicesQuery.isLoading &&
+              !profile.servicesUnavailable &&
+              profile.services.length === 0 ? (
+                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-6 text-white/55">
+                  No services are published for this agent yet.
+                </div>
+              ) : null}
+
+              {profile.servicesUnavailable ? (
+                <StatusNoticeCard
+                  tone="warning"
+                  title="Service catalog unavailable"
+                  description="The backend service-listing endpoint is not available yet, so individual services cannot be shown on this profile for now."
+                />
+              ) : null}
             </div>
           </div>
 
-          {/* Right Column: Order Card */}
           <div className="lg:col-span-1">
             <div className="sticky top-32">
-              <Card className="glass-card border-indigo-500/20 shadow-[0_0_50px_rgba(79,70,229,0.1)] overflow-hidden">
+              <Card className="glass-card overflow-hidden border-indigo-500/20 shadow-[0_0_50px_rgba(79,70,229,0.1)]">
                 <div className="bg-indigo-600 px-6 py-2 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">Autonomous Service</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                    Wallet-Aware Ordering
+                  </p>
                 </div>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-2xl font-display font-bold">Standard Task</CardTitle>
-                  <CardDescription className="text-white/40">High-converting copy generation</CardDescription>
+                <CardHeader>
+                  <CardTitle className="text-2xl font-display font-bold">
+                    {profile.primaryService?.title ?? "Ordering"}
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    {profile.primaryService?.description ??
+                      "Connect your wallet and choose a live service to begin."}
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-8">
-                  <div className="flex items-end gap-2">
-                    <span className="text-5xl font-bold tracking-tight font-display">50.00</span>
-                    <span className="text-lg text-white/40 font-bold pb-1.5 uppercase tracking-widest">USDC</span>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {[
-                      { icon: CheckCircle2, text: "Up to 1,500 words of optimized copy", color: "text-indigo-500" },
-                      { icon: CheckCircle2, text: "SEO keyword integration", color: "text-indigo-500" },
-                      { icon: CheckCircle2, text: "2 revisions included", color: "text-indigo-500" },
-                      { icon: Zap, text: "Instant delivery (approx. 2 mins)", color: "text-amber-500" },
-                    ].map((feature, i) => (
-                      <div key={i} className="flex items-start gap-3 text-sm">
-                        <feature.icon className={cn("w-5 h-5 shrink-0", feature.color)} />
-                        <span className="text-white/80">{feature.text}</span>
-                      </div>
-                    ))}
+                <CardContent className="space-y-6">
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+                      Primary price
+                    </p>
+                    <p className="mt-2 text-4xl font-display font-bold text-emerald-400">
+                      {profile.primaryService
+                        ? profile.primaryService.pricing.currency
+                          ? `${profile.primaryService.pricing.amount} ${profile.primaryService.pricing.currency}`
+                          : `${profile.primaryService.pricing.amount} ${profile.primaryService.pricing.denom}`
+                        : "Unavailable"}
+                    </p>
                   </div>
 
-                  <div className="pt-6 border-t border-white/5 space-y-4">
-                    <Link href="/checkout/1" className="block w-full">
-                      <Button className="w-full h-14 text-lg font-bold shadow-[0_0_30px_rgba(79,70,229,0.4)]">
-                        Hire Agent
-                      </Button>
-                    </Link>
-                    <div className="flex items-center justify-center gap-4">
-                      <Button variant="ghost" size="sm" className="text-white/40 hover:text-white text-xs">
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Message
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-white/40 hover:text-white text-xs">
-                        <Globe className="w-4 h-4 mr-2" />
-                        Website
-                      </Button>
+                  <div className="space-y-3 rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+                    <div className="flex items-center gap-3">
+                      <Wallet className="h-5 w-5 text-indigo-400" />
+                      <div>
+                        <p className="font-semibold text-white">
+                          {profile.orderCta.label}
+                        </p>
+                        <p className="text-sm text-white/45">
+                          {profile.orderCta.helperText}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-center text-[10px] font-bold uppercase tracking-widest text-white/20">
-                      Payment secured on Initia network
+
+                    {profile.orderCta.disabled || !profile.orderCta.href ? (
+                      profile.primaryService &&
+                      (!profile.wallet.isConnected ||
+                        !profile.wallet.isOnExpectedAppchain) ? (
+                        <WalletActionButton
+                          className="w-full"
+                          onAuthorizedAction={() => void 0}
+                          connectLabel="Connect Wallet to Order"
+                        >
+                          {profile.orderCta.label}
+                        </WalletActionButton>
+                      ) : (
+                        <Button className="w-full" disabled>
+                          {profile.orderCta.label}
+                        </Button>
+                      )
+                    ) : (
+                      <Link href={profile.orderCta.href} className="block">
+                        <Button className="w-full">Hire Agent</Button>
+                      </Link>
+                    )}
+
+                    {!profile.wallet.isConnected ? (
+                      <div className="pt-2">
+                        <ConnectWalletButton />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <SessionApprovalCard compact surface="agent_profile" />
+
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-sm text-white/55">
+                    <div className="flex items-center gap-2 text-white/80">
+                      <Globe className="h-4 w-4 text-emerald-400" />
+                      <span>{profile.wallet.expectedNetworkLabel}</span>
+                    </div>
+                    <p className="mt-2">
+                      Payments and order settlement are handled through the
+                      appchain, while the backend keeps the consumer workflow in
+                      sync.
                     </p>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </div>
-
         </div>
       </main>
     </div>

@@ -4,36 +4,23 @@ import Link from "next/link"
 import { motion } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { Bot, Zap, Shield, Globe, ArrowRight, TrendingUp, DollarSign, Activity } from "lucide-react"
-import { useSession } from "@/components/providers/SessionProvider"
+import { BrandMark } from "@/components/layout/BrandMark"
+import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
 
 export default function LandingPage() {
-  const { isSessionActive } = useSession()
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
       <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-display font-bold text-xl tracking-tight">AgentCommerce</span>
-            {isSessionActive && (
-              <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1.5">
-                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Auto-Signing</span>
-              </div>
-            )}
-          </Link>
+          <BrandMark showNativeFeature surface="general" />
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
             <Link href="#features" className="hover:text-white transition-colors">Features</Link>
             <Link href="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
             <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Sign In</Button>
-            </Link>
+            <WalletSessionControls surface="general" showSessionStatus={false} />
             <Link href="/dashboard/create">
               <Button size="sm">Get Started</Button>
             </Link>
@@ -251,7 +238,7 @@ export default function LandingPage() {
             <Link href="#" className="hover:text-white transition-colors">Docs</Link>
             <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
           </div>
-          <p className="text-sm text-white/20">© 2026 AgentCommerce Inc. All rights reserved.</p>
+          <p className="text-sm text-white/20">(c) 2026 AgentCommerce Inc. All rights reserved.</p>
         </div>
       </footer>
     </div>

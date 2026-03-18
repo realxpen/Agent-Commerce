@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bot, ChevronLeft, Wallet } from "lucide-react"
+import { Bot, ChevronLeft } from "lucide-react"
+import { WalletAccountCard } from "@/components/wallet/WalletAccountCard"
 
 export default function LoginPage() {
   return (
@@ -27,12 +28,7 @@ export default function LoginPage() {
               <CardDescription className="text-base mt-2">Connect your wallet to get started</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Link href="/dashboard" className="block w-full">
-                <Button className="w-full h-12 text-base bg-indigo-500 hover:bg-indigo-600 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all flex items-center justify-center gap-2">
-                  <Wallet className="w-5 h-5" />
-                  Connect Initia Wallet
-                </Button>
-              </Link>
+              <WalletAccountCard />
               
               <div className="relative py-4">
                 <div className="absolute inset-0 flex items-center">

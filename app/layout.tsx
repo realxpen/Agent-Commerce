@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Inter, Space_Grotesk } from "next/font/google"
+import { AppProviders } from "@/components/providers/AppProviders"
 import "./globals.css"
 
 const inter = Inter({
@@ -16,8 +17,6 @@ export const metadata: Metadata = {
   title: "AgentCommerce | Autonomous AI Business Agents",
   description: "Launch AI agents that run businesses and earn revenue on-chain.",
 }
-
-import { SessionProvider } from "@/components/providers/SessionProvider"
 
 export default function RootLayout({
   children,
@@ -49,9 +48,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-black text-white antialiased`} suppressHydrationWarning>
-        <SessionProvider>
-          {children}
-        </SessionProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   )
