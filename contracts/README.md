@@ -1,164 +1,66 @@
-# AgentCommerce Contracts
+## Foundry
 
-Minimal Foundry workspace for the AgentCommerce Initia EVM smart contract layer.
+**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-## Contract Commands
+Foundry consists of:
 
-Copy the environment template before running deployment commands:
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
-```bash
-cp .env.example .env
+## Documentation
+
+https://book.getfoundry.sh/
+
+## Usage
+
+### Build
+
+```shell
+$ forge build
 ```
 
-Build contracts:
+### Test
 
-```bash
-forge build
+```shell
+$ forge test
 ```
 
-Run the unit test suite:
+### Format
 
-```bash
-forge test -vvv
+```shell
+$ forge fmt
 ```
 
-Run a single test file:
+### Gas Snapshots
 
-```bash
-forge test --match-path test/AgentRegistry.t.sol -vvv
+```shell
+$ forge snapshot
 ```
 
-Format Solidity files:
+### Anvil
 
-```bash
-forge fmt
+```shell
+$ anvil
 ```
 
-Generate gas snapshots:
+### Deploy
 
-```bash
-forge snapshot
+```shell
+$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
 
-Dry-run the deploy script against an Initia EVM appchain RPC:
+### Cast
 
-```bash
-forge script script/DeployAll.s.sol:DeployAll \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID
+```shell
+$ cast <subcommand>
 ```
 
-Broadcast deployments:
+### Help
 
-```bash
-forge script script/DeployAll.s.sol:DeployAll \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID \
-  --broadcast
+```shell
+$ forge --help
+$ anvil --help
+$ cast --help
 ```
-
-Deploy only `AgentRegistry`:
-
-```bash
-forge build
-
-forge script script/DeployAgentRegistry.s.sol:DeployAgentRegistry \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID \
-  --broadcast
-```
-
-Deploy only `ServiceEscrow` after setting `AGENT_REGISTRY_ADDRESS` in `.env`:
-
-```bash
-forge build
-
-forge script script/DeployServiceEscrow.s.sol:DeployServiceEscrow \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID \
-  --broadcast
-```
-
-Deploy the full stack in one run:
-
-```bash
-forge build
-
-forge script script/DeployAll.s.sol:DeployAll \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID \
-  --broadcast
-```
-
-Each script reads its config from environment variables and prints the deployed contract
-addresses in the script output for easy copy/paste into the backend or frontend config.
-
-## Live Smoke Test
-
-Run the end-to-end live smoke test against an already deployed `AgentRegistry` and
-`ServiceEscrow`. Make sure the agent owner wallet has gas and the customer wallet is
-funded with at least `SMOKE_TEST_SERVICE_PRICE_WEI` plus gas.
-
-```bash
-forge build
-
-forge script script/SmokeTestLiveDeployment.s.sol:SmokeTestLiveDeployment \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID \
-  --broadcast
-```
-
-The smoke script will:
-
-- create an agent
-- create a one-time service
-- create an order with payment
-- mark the order in progress
-- mark the order delivered
-- confirm completion
-- print balances before order creation, before settlement, and after settlement
-
-Required env vars for the smoke test:
-
-- `AGENT_REGISTRY_ADDRESS`
-- `SERVICE_ESCROW_ADDRESS`
-- `AGENT_OWNER_PRIVATE_KEY`
-- `CUSTOMER_PRIVATE_KEY`
-- `SMOKE_TEST_AGENT_TREASURY_ADDRESS`
-- `SMOKE_TEST_SERVICE_PRICE_WEI`
-
-## Hackathon Submission Helper
-
-Print submission-ready values from env for an existing deployment:
-
-```bash
-forge script script/PrintSubmissionInfo.s.sol:PrintSubmissionInfo \
-  --rpc-url $APPCHAIN_RPC_URL \
-  --chain-id $APPCHAIN_CHAIN_ID
-```
-
-For this architecture:
-
-- Primary `deployed_address`: use the deployed `ServiceEscrow` address
-- Primary `core_logic_path`: use `contracts/src/ServiceEscrow.sol`
-- Supporting contract path: `contracts/src/AgentRegistry.sol`
-
-Reasoning:
-
-- `ServiceEscrow` is the main user-facing settlement contract and the primary entrypoint for paid order flow
-- `AgentRegistry` supports discovery and metadata, but escrow/settlement is the core on-chain business logic
-
-Placeholder example for `.initia/submission.json`:
-
-```json
-{
-  "deployed_address": "<SERVICE_ESCROW_ADDRESS>",
-  "core_logic_path": "contracts/src/ServiceEscrow.sol",
-  "chain_id": "<APPCHAIN_CHAIN_ID>"
-}
-```
-
-## Contracts
-
-- `AgentRegistry`: manages agents and their service listings.
-- `ServiceEscrow`: manages native-token orders, escrow, settlement, and refunds.
