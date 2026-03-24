@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import { useInterwovenKit } from "@initia/interwovenkit-react"
 import { useDisconnect } from "wagmi"
 import { agentCommerceConfig } from "@/lib/appchain/config"
+import { switchToAgentCommerceAppchain } from "@/lib/appchain/wallet-network"
 
 function assertWalletConfigReady() {
   if (!agentCommerceConfig.status.walletReady) {
@@ -30,6 +31,10 @@ export function useWalletActions() {
       assertWalletConfigReady()
       openBridge()
     }, [openBridge]),
+    switchNetwork: useCallback(async () => {
+      assertWalletConfigReady()
+      await switchToAgentCommerceAppchain()
+    }, []),
     disconnect: useCallback(() => {
       disconnect()
     }, [disconnect]),

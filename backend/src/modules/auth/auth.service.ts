@@ -67,6 +67,47 @@ function shortenAddress(address: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
+function verifyAdr36Signature(input: {
+  bech32Prefix: string;
+  address: string;
+  message: string;
+  publicKey: Uint8Array;
+  signature: Uint8Array;
+  algo: "secp256k1" | "ethsecp256k1";
+}) {
+  try {
+    return verifyADR36Amino(
+      input.bech32Prefix,
+      input.address,
+      input.message,
+      input.publicKey,
+      input.signature,
+      input.algo,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Wallet signature verification failed";
+
+    if (
+      message.includes("Unmatched signer") ||
+      message.includes("Invalid sign doc for ADR-36") ||
+      message.includes("Chain id should be empty string") ||
+      message.includes("Memo should be empty string") ||
+      message.includes("Account number should be") ||
+      message.includes("Sequence should be") ||
+      message.includes("Gas should be") ||
+      message.includes("Fee amount should be") ||
+      message.includes("Invalid type of ADR-36 sign msg") ||
+      message.includes("Empty signer") ||
+      message.includes("Empty data") ||
+      message.includes("Data is not encoded by base64")
+    ) {
+      throw createHttpError(401, "Wallet signature verification failed");
+    }
+
+    throw error;
+  }
+}
+
 function buildAuthMessage(input: {
   address: string;
   chainId: string;
@@ -277,14 +318,14 @@ export async function verifyWalletAuthChallenge(
     throw createHttpError(400, "publicKey and signature must be valid base64 strings");
   }
 
-  const isValid = verifyADR36Amino(
+  const isValid = verifyAdr36Signature({
     bech32Prefix,
     address,
-    challenge.message,
+    message: challenge.message,
     publicKey,
     signature,
-    input.algo,
-  );
+    algo: input.algo,
+  });
 
   if (!isValid) {
     throw createHttpError(401, "Wallet signature verification failed");

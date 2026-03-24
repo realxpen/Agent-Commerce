@@ -18,7 +18,7 @@ export function WalletActionButton({
   onAuthorizedAction,
   requireExpectedAppchain = true,
   connectLabel = "Connect Wallet to Continue",
-  switchNetworkLabel = "Open Wallet to Switch Network",
+  switchNetworkLabel = "Switch to AgentCommerce Network",
   disabled,
   ...buttonProps
 }: WalletActionButtonProps) {
@@ -46,7 +46,7 @@ export function WalletActionButton({
     }
 
     if (guardState === "wrong_network") {
-      return wallet.openWallet()
+      return wallet.switchNetwork()
     }
 
     return onAuthorizedAction()

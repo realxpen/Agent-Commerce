@@ -2,6 +2,7 @@ import {
   TESTNET,
   initiaPrivyWalletConnector,
 } from "@initia/interwovenkit-react"
+import { defineChain } from "viem"
 import { createConfig, http } from "wagmi"
 import { getPublicEnv } from "@/lib/env"
 
@@ -37,10 +38,18 @@ export type FrontendSafeAppchainConfig = {
     chainId: number
     interwovenChainId: string
     rpcUrl: string
+    bech32Prefix: string
+    nativeDenom: string
     nativeCurrency: {
       name: string
       symbol: string
       decimals: number
+    }
+    apiEndpoints: {
+      jsonRpc: string
+      rpc: string
+      rest: string
+      indexer: string
     }
   }
   contracts: {
@@ -64,21 +73,46 @@ const configDescription = hasConfigIssues
       .map((issue) => issue.name)
       .join(", ")}.`
   : "Frontend setup is ready."
+const APPCHAIN_BECH32_PREFIX = "init"
+const APPCHAIN_NATIVE_DENOM = "GAS"
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "")
+}
+
+function replaceUrlPort(url: string, port: string) {
+  try {
+    const nextUrl = new URL(url)
+    nextUrl.port = port
+    return trimTrailingSlash(nextUrl.toString())
+  } catch {
+    return trimTrailingSlash(url)
+  }
+}
+
+const appchainApiEndpoints = {
+  jsonRpc: trimTrailingSlash(env.appchainRpcUrl),
+  rpc: replaceUrlPort(env.appchainRpcUrl, "26657"),
+  rest: replaceUrlPort(env.appchainRpcUrl, "1317"),
+  indexer: replaceUrlPort(env.appchainRpcUrl, "8080"),
+}
 
 export const agentCommerceConfig: FrontendSafeAppchainConfig = {
   appName: "AgentCommerce",
   apiBaseUrl: env.apiBaseUrl,
   appchain: {
-    displayName: "AgentCommerce Appchain",
+    displayName: "AgentCommerce Local Rollup",
     chainId: env.appchainEvmChainId,
-    interwovenChainId: env.appchainChainId || TESTNET.defaultChainId,
-    rpcUrl: env.appchainRpcUrl,
-    // Replace these placeholders with your finalized appchain native token details.
+    interwovenChainId: env.appchainChainId || String(env.appchainEvmChainId),
+    rpcUrl: appchainApiEndpoints.jsonRpc,
+    bech32Prefix: APPCHAIN_BECH32_PREFIX,
+    nativeDenom: APPCHAIN_NATIVE_DENOM,
     nativeCurrency: {
-      name: "Appchain Native Token",
-      symbol: "NATIVE",
+      name: "Gas",
+      symbol: "GAS",
       decimals: 18,
     },
+    apiEndpoints: appchainApiEndpoints,
   },
   contracts: {
     agentRegistry: env.agentRegistryAddress,
@@ -93,7 +127,7 @@ export const agentCommerceConfig: FrontendSafeAppchainConfig = {
   },
 }
 
-export const agentCommerceChain = {
+export const agentCommerceChain = defineChain({
   id: agentCommerceConfig.appchain.chainId,
   name: agentCommerceConfig.appchain.displayName,
   nativeCurrency: agentCommerceConfig.appchain.nativeCurrency,
@@ -105,12 +139,53 @@ export const agentCommerceChain = {
       http: [agentCommerceConfig.appchain.rpcUrl],
     },
   },
-} as const
+})
 
 export const agentCommerceAppchain = agentCommerceChain
 export const appchainContracts = agentCommerceConfig.contracts
 export const appchainRegistryChainId =
   agentCommerceConfig.appchain.interwovenChainId
+
+export const agentCommerceCustomChain = {
+  chain_id: agentCommerceConfig.appchain.interwovenChainId,
+  chain_name: agentCommerceConfig.appchain.displayName,
+  network_type: "testnet" as const,
+  bech32_prefix: agentCommerceConfig.appchain.bech32Prefix,
+  apis: {
+    rpc: [{ address: agentCommerceConfig.appchain.apiEndpoints.rpc }],
+    rest: [{ address: agentCommerceConfig.appchain.apiEndpoints.rest }],
+    indexer: [{ address: agentCommerceConfig.appchain.apiEndpoints.indexer }],
+    "json-rpc": [{ address: agentCommerceConfig.appchain.apiEndpoints.jsonRpc }],
+  },
+  fees: {
+    fee_tokens: [
+      {
+        denom: agentCommerceConfig.appchain.nativeDenom,
+        fixed_min_gas_price: 0,
+        low_gas_price: 0,
+        average_gas_price: 0,
+        high_gas_price: 0,
+      },
+    ],
+  },
+  staking: {
+    staking_tokens: [{ denom: agentCommerceConfig.appchain.nativeDenom }],
+  },
+  native_assets: [
+    {
+      denom: agentCommerceConfig.appchain.nativeDenom,
+      name: agentCommerceConfig.appchain.nativeCurrency.name,
+      symbol: agentCommerceConfig.appchain.nativeCurrency.symbol,
+      decimals: agentCommerceConfig.appchain.nativeCurrency.decimals,
+    },
+  ],
+  metadata: {
+    is_l1: false,
+    minitia: {
+      type: "minievm" as const,
+    },
+  },
+}
 
 export const wagmiConfig = createConfig({
   connectors: [initiaPrivyWalletConnector],
@@ -118,11 +193,14 @@ export const wagmiConfig = createConfig({
   transports: {
     [agentCommerceAppchain.id]: http(agentCommerceConfig.appchain.rpcUrl),
   },
+  ssr: true,
 })
 
 export const interwovenKitConfig = {
   ...TESTNET,
   defaultChainId: agentCommerceConfig.appchain.interwovenChainId,
+  customChain: agentCommerceCustomChain,
+  customChains: [agentCommerceCustomChain],
   theme: "dark" as const,
   disableAnalytics: true,
   enableAutoSign: true,

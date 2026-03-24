@@ -23,6 +23,16 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/verify", async (request) => {
     const body = verifyWalletAuthBodySchema.parse(request.body ?? {});
+    request.log.info(
+      {
+        address: body.address,
+        chainId: body.chainId,
+        algo: body.algo,
+        publicKeyLength: body.publicKey.length,
+        signatureLength: body.signature.length,
+      },
+      "Verifying wallet auth challenge",
+    );
     const session = await verifyWalletAuthChallenge(app.prisma, app.redis, body);
 
     return {
@@ -53,6 +63,16 @@ export async function authRoutes(app: FastifyInstance) {
     },
     async (request) => {
       const body = verifyWalletAuthBodySchema.parse(request.body ?? {});
+      request.log.info(
+        {
+          address: body.address,
+          chainId: body.chainId,
+          algo: body.algo,
+          publicKeyLength: body.publicKey.length,
+          signatureLength: body.signature.length,
+        },
+        "Verifying linked wallet auth challenge",
+      );
       const session = await verifyWalletAuthChallenge(
         app.prisma,
         app.redis,

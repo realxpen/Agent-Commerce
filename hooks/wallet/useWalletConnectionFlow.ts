@@ -43,6 +43,10 @@ export function useWalletConnectionFlow() {
     return runAction(() => actions.openWallet())
   }, [actions, runAction])
 
+  const switchNetwork = useCallback(() => {
+    return runAction(() => actions.switchNetwork())
+  }, [actions, runAction])
+
   const clearError = useCallback(() => {
     setError(null)
   }, [])
@@ -65,6 +69,7 @@ export function useWalletConnectionFlow() {
       connect,
       disconnect,
       openWallet,
+      switchNetwork,
       clearError,
       error,
       errorMessage: error?.message ?? null,
@@ -84,6 +89,7 @@ export function useWalletConnectionFlow() {
       error,
       isBusy,
       openWallet,
+      switchNetwork,
       walletStatusDescription,
       walletStatusLabel,
       walletState,

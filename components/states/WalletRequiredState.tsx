@@ -53,7 +53,7 @@ export function WalletRequiredState({
           description:
             description ??
             wallet.networkMessage.description,
-          primaryLabel: primaryLabel ?? "Open Wallet to Switch",
+          primaryLabel: primaryLabel ?? "Switch Network",
           Icon: Globe,
         }
       : {
@@ -72,7 +72,7 @@ export function WalletRequiredState({
     }
 
     if (resolvedMode === "wrong_network") {
-      return wallet.openWallet()
+      return wallet.switchNetwork()
     }
 
     return wallet.connect()

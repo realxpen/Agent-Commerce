@@ -117,6 +117,40 @@ function normalizeAuthError(error: unknown) {
   }
 }
 
+function normalizeSignerAlgo(
+  algo: string | null | undefined,
+): "secp256k1" | "ethsecp256k1" {
+  return algo === "ethsecp256k1" ? "ethsecp256k1" : "secp256k1"
+}
+
+function getSignedPublicKeyBase64(
+  signedResponse:
+    | {
+        signature?: {
+          pub_key?: {
+            value?: string
+          } | null
+        } | null
+      }
+    | null
+    | undefined,
+  fallbackPubkey: Uint8Array,
+) {
+  const signedPubKey = signedResponse?.signature?.pub_key
+
+  if (
+    signedPubKey &&
+    typeof signedPubKey === "object" &&
+    "value" in signedPubKey &&
+    typeof signedPubKey.value === "string" &&
+    signedPubKey.value.trim().length > 0
+  ) {
+    return signedPubKey.value
+  }
+
+  return uint8ArrayToBase64(fallbackPubkey)
+}
+
 export function AuthSessionProvider({ children }: PropsWithChildren) {
   const wallet = useWalletAccount()
   const { offlineSigner } = useInterwovenKit()
@@ -306,13 +340,17 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         challenge.data.message,
       )
       const signed = await offlineSigner.signAmino(wallet.initiaAddress, signDoc)
+      const algo = normalizeSignerAlgo(
+        (activeAccount as { algo?: string | null | undefined }).algo,
+      )
+
       const verified = await agentCommerceApi.verifyAuthChallenge({
         address: wallet.initiaAddress,
         chainId: challenge.data.chainId,
         nonce: challenge.data.nonce,
         signature: signed.signature.signature,
-        publicKey: uint8ArrayToBase64(activeAccount.pubkey),
-        algo: "secp256k1",
+        publicKey: getSignedPublicKeyBase64(signed, activeAccount.pubkey),
+        algo,
       })
 
       if (storageKey) {

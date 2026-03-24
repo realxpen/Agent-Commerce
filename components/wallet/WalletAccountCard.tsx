@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ExternalLink,
+  Globe,
   Loader2,
   LogOut,
   ShieldCheck,
@@ -36,8 +37,10 @@ export function WalletAccountCard({
     isConnected,
     isConfigured,
     networkMessage,
+    isOnExpectedAppchain,
     openWallet,
     shortAddress,
+    switchNetwork,
     walletStatusDescription,
   } = useWalletConnectionFlow()
   const auth = useBackendAuth()
@@ -224,17 +227,21 @@ export function WalletAccountCard({
       <div className="mt-4 flex items-center gap-2">
         <Button
           className="flex-1"
-          onClick={() => void openWallet()}
+          onClick={() =>
+            void (isOnExpectedAppchain ? openWallet() : switchNetwork())
+          }
           size={compact ? "sm" : "default"}
           type="button"
           variant="glass"
         >
           {isBusy ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : !isOnExpectedAppchain ? (
+            <Globe className="mr-2 size-4" />
           ) : (
             <ExternalLink className="mr-2 size-4" />
           )}
-          Open Wallet
+          {isOnExpectedAppchain ? "Open Wallet" : "Switch Network"}
         </Button>
         <Button
           className="border-white/10 text-white/70 hover:border-rose-500/20 hover:bg-rose-500/10 hover:text-rose-300"

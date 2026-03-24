@@ -95,55 +95,75 @@ export default function CheckoutPage() {
           ) : null}
 
           {!createOrder.isWorking && !createOrder.isSuccess && !createOrder.isError ? (
-            <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
-              <CheckoutSummary
-                checkout={checkout}
-                customerNote={customerNote}
-                onCustomerNoteChange={setCustomerNote}
-              />
+            <div className="space-y-8">
+              <SessionApprovalCard surface="checkout" />
 
-              <div className="space-y-5">
-                <SessionApprovalCard compact surface="checkout" />
+              <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+                <CheckoutSummary
+                  checkout={checkout}
+                  customerNote={customerNote}
+                  onCustomerNoteChange={setCustomerNote}
+                />
 
-                <div className="glass-card rounded-2xl border border-indigo-500/20 p-6">
-                  <h2 className="text-2xl font-display font-bold">
-                    Ready to pay
-                  </h2>
-                  <p className="mt-2 text-white/45">
-                    Pay once here. If smoother actions are enabled, repeat order
-                    steps can feel much lighter after this.
-                  </p>
+                <div className="space-y-5">
+                  <div className="glass-card rounded-2xl border border-indigo-500/20 p-6">
+                    <div className="inline-flex items-center rounded-full border border-indigo-400/20 bg-indigo-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-200">
+                      Native Feature
+                    </div>
+                    <h2 className="mt-4 text-2xl font-display font-bold">
+                      Ready to pay
+                    </h2>
+                    <p className="mt-2 text-white/45">
+                      Confirm payment once here. When your smooth action session
+                      is active, repeat steps can feel nearly invisible while the
+                      app keeps the commerce flow moving.
+                    </p>
 
-                  <div className="mt-6 space-y-3">
-                    <WalletActionButton
-                      className="w-full h-14 text-lg font-bold"
-                      connectLabel="Connect Wallet to Pay"
-                      disabled={!createOrder.canSubmit}
-                      onAuthorizedAction={() =>
-                        createOrder.submit({ customerNote })
-                      }
-                    >
-                      Confirm Payment
-                    </WalletActionButton>
-                    {!createOrder.canSubmit ? (
-                      <p className="text-sm text-amber-200">
-                        {!createOrder.wallet.isConfigured
-                          ? createOrder.wallet.networkMessage.description
-                          : "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."}
+                    <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/65">
+                      <p className="font-semibold text-white">
+                        {isSessionActive
+                          ? "Smooth action session is active"
+                          : "One approval unlocks smoother follow-up actions"}
                       </p>
-                    ) : null}
-                  </div>
-                </div>
+                      <p className="mt-1">
+                        {isSessionActive
+                          ? "AgentCommerce can reuse your approved session for compatible follow-up actions, reducing extra wallet interruptions."
+                          : "Approve once in simple language, then compatible repeat actions can happen with much less friction until the session ends."}
+                      </p>
+                    </div>
 
-                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-sm text-white/55">
-                  <p className="font-semibold text-white">
-                    Smooth consumer UX
-                  </p>
-                  <p className="mt-2">
-                    AgentCommerce creates the order record when available, sends
-                    the payment transaction, and then refreshes the order state
-                    so blockchain steps stay mostly invisible.
-                  </p>
+                    <div className="mt-6 space-y-3">
+                      <WalletActionButton
+                        className="w-full h-14 text-lg font-bold"
+                        connectLabel="Connect Wallet to Pay"
+                        disabled={!createOrder.canSubmit}
+                        onAuthorizedAction={() =>
+                          createOrder.submit({ customerNote })
+                        }
+                      >
+                        Confirm Payment
+                      </WalletActionButton>
+                      {!createOrder.canSubmit ? (
+                        <p className="text-sm text-amber-200">
+                          {!createOrder.wallet.isConfigured
+                            ? createOrder.wallet.networkMessage.description
+                            : "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-sm text-white/55">
+                    <p className="font-semibold text-white">
+                      Smooth consumer UX
+                    </p>
+                    <p className="mt-2">
+                      AgentCommerce prepares the order, opens the wallet only when
+                      needed, sends the escrow payment on your local Initia rollup,
+                      and then refreshes the order state so the chain details stay
+                      mostly in the background.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

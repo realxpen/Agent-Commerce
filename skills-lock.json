@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "initia-appchain-dev": {
+      "source": "initia-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "9246eb21c43b1b847879d89b6d94487922623d97dd497e91438ed5cdb92a0481"
+    }
+  }
+}

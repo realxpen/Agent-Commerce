@@ -28,10 +28,10 @@ type PublicEnv = {
 let cachedPublicEnv: PublicEnv | null = null
 
 const FALLBACK_RPC_URL = "http://127.0.0.1:8545"
-const FALLBACK_CHAIN_ID = 31337
+const FALLBACK_CHAIN_ID = 4273954181916632
 const FALLBACK_CONTRACT_ADDRESS =
   "0x0000000000000000000000000000000000000000" as HexAddress
-const FALLBACK_API_BASE_URL = "http://127.0.0.1:3001"
+const FALLBACK_API_BASE_URL = "http://127.0.0.1:4000"
 
 function readEnvString(
   name: string,
@@ -124,7 +124,7 @@ export function getPublicEnv(): PublicEnv {
   const appchainChainId = readEnvString(
     "NEXT_PUBLIC_APPCHAIN_CHAIN_ID",
     process.env.NEXT_PUBLIC_APPCHAIN_CHAIN_ID,
-    "",
+    String(FALLBACK_CHAIN_ID),
     issues,
     buckets,
   )

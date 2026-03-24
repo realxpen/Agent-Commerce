@@ -2,6 +2,15 @@ import "dotenv/config";
 
 import { z } from "zod";
 
+const optionalNonEmptyString = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}, z.string().min(1).optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   SERVICE_NAME: z.string().min(1).default("agent-commerce-backend"),
@@ -15,8 +24,15 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   REDIS_PREFIX: z.string().min(1).default("agent-commerce"),
-  INITIA_RPC_URL: z.string().url().optional(),
-  WEBHOOK_SECRET: z.string().min(1).optional(),
+  INITIA_RPC_URL: z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().url().optional()),
+  WEBHOOK_SECRET: optionalNonEmptyString,
   JWT_SECRET: z.string().min(32),
   JWT_ISSUER: z.string().min(1).default("agent-commerce-backend"),
   JWT_AUDIENCE: z.string().min(1).default("agent-commerce-app"),
@@ -30,7 +46,7 @@ const envSchema = z.object({
     .default("Sign this message to authenticate with AgentCommerce."),
   LLM_PROVIDER: z.enum(["openai"]).default("openai"),
   LLM_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   OPENAI_MODEL: z.string().min(1).default("gpt-4.1-mini"),
 });

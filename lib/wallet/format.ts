@@ -188,6 +188,63 @@ export function normalizeWalletError(error: unknown): NormalizedWalletError {
   }
 
   if (
+    message.includes("already pending") ||
+    message.includes("request is already pending") ||
+    message.includes("-32002")
+  ) {
+    return {
+      code: "PROVIDER_NOT_READY",
+      title: "Finish the wallet request first",
+      message:
+        "MetaMask already has a wallet request waiting. Open MetaMask, complete or dismiss it, then try again.",
+      details: rawMessage,
+    }
+  }
+
+  if (
+    message.includes("no injected wallet provider") ||
+    message.includes("wallet not found") ||
+    message.includes("provider not found") ||
+    message.includes("install or unlock metamask")
+  ) {
+    return {
+      code: "PROVIDER_NOT_READY",
+      title: "Wallet provider not available",
+      message:
+        "Open and unlock MetaMask in this browser, then try the wallet action again.",
+      details: rawMessage,
+    }
+  }
+
+  if (
+    message.includes("unrecognized chain id") ||
+    message.includes("unknown chain") ||
+    message.includes("chain has not been added") ||
+    message.includes("wallet_addethereumchain")
+  ) {
+    return {
+      code: "WRONG_NETWORK",
+      title: "Add the AgentCommerce appchain",
+      message:
+        "Your wallet does not know this local AgentCommerce rollup yet. Approve the add-network request in MetaMask, then retry the action.",
+      details: rawMessage,
+    }
+  }
+
+  if (
+    message.includes("failed to connect to metamask") ||
+    message.includes("metamask") && message.includes("failed to connect")
+  ) {
+    return {
+      code: "PROVIDER_NOT_READY",
+      title: "MetaMask could not connect",
+      message:
+        "Open and unlock MetaMask, then approve the connection request for this site before trying again.",
+      details: rawMessage,
+    }
+  }
+
+  if (
     message.includes("provider is mounted") ||
     message.includes("provider") ||
     message.includes("connector")
