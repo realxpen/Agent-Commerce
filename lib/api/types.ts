@@ -427,6 +427,28 @@ export type AccessTokenProvider = () =>
   | Promise<string | null | undefined>
 
 export type WalletAuthAlgo = "secp256k1" | "ethsecp256k1"
+export type WalletAuthMethod = "adr36" | "eip191"
+
+export type Adr36SignDoc = {
+  chain_id: string
+  account_number: string
+  sequence: string
+  fee: {
+    gas: string
+    amount: ReadonlyArray<{
+      denom: string
+      amount: string
+    }>
+  }
+  msgs: ReadonlyArray<{
+    type: string
+    value: {
+      signer: string
+      data: string
+    }
+  }>
+  memo: string
+}
 
 export type AuthChallengeInput = {
   address: string
@@ -439,8 +461,10 @@ export type VerifyWalletAuthInput = {
   chainId: string
   nonce: string
   signature: string
-  publicKey: string
+  publicKey?: string
   algo?: WalletAuthAlgo
+  method?: WalletAuthMethod
+  signDoc?: Adr36SignDoc
 }
 
 export type AuthWalletDto = {

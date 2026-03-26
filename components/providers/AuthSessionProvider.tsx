@@ -10,6 +10,7 @@ import {
   type PropsWithChildren,
 } from "react"
 import { useInterwovenKit } from "@initia/interwovenkit-react"
+import { toHex } from "viem"
 import { useWalletAccount } from "@/hooks/wallet/useWalletAccount"
 import {
   AgentCommerceApiError,
@@ -49,6 +50,15 @@ type BackendAuthContextValue = {
 }
 
 const STORAGE_KEY = "agentcommerce:backend-auth-sessions"
+
+type EthereumRequestArguments = {
+  method: string
+  params?: unknown[] | object
+}
+
+type EthereumProvider = {
+  request: (args: EthereumRequestArguments) => Promise<unknown>
+}
 
 const BackendAuthContext = createContext<BackendAuthContextValue | undefined>(
   undefined,
@@ -96,6 +106,22 @@ function isSessionExpired(session: AuthSessionDto | null, bufferMs = 30_000) {
   return new Date(session.expiresAt).getTime() <= Date.now() + bufferMs
 }
 
+function isSameSession(
+  left: AuthSessionDto | null,
+  right: AuthSessionDto | null,
+) {
+  if (!left || !right) {
+    return left === right
+  }
+
+  return (
+    left.accessToken === right.accessToken &&
+    left.expiresAt === right.expiresAt &&
+    left.activeWallet.id === right.activeWallet.id &&
+    left.user.id === right.user.id
+  )
+}
+
 function normalizeAuthError(error: unknown) {
   if (error instanceof AgentCommerceApiError) {
     return {
@@ -121,6 +147,12 @@ function normalizeSignerAlgo(
   algo: string | null | undefined,
 ): "secp256k1" | "ethsecp256k1" {
   return algo === "ethsecp256k1" ? "ethsecp256k1" : "secp256k1"
+}
+
+function getAlternateSignerAlgo(
+  algo: "secp256k1" | "ethsecp256k1",
+): "secp256k1" | "ethsecp256k1" {
+  return algo === "ethsecp256k1" ? "secp256k1" : "ethsecp256k1"
 }
 
 function getSignedPublicKeyBase64(
@@ -149,6 +181,37 @@ function getSignedPublicKeyBase64(
   }
 
   return uint8ArrayToBase64(fallbackPubkey)
+}
+
+function getInjectedEthereumProvider() {
+  const provider =
+    typeof window !== "undefined"
+      ? (window as Window & { ethereum?: EthereumProvider }).ethereum
+      : undefined
+
+  if (!provider) {
+    throw new Error(
+      "Open and unlock MetaMask before unlocking backend sync.",
+    )
+  }
+
+  return provider
+}
+
+async function signMessageWithPersonalSign(message: string, address: string) {
+  const provider = getInjectedEthereumProvider()
+  const signature = await provider.request({
+    method: "personal_sign",
+    params: [toHex(message), address],
+  })
+
+  if (typeof signature !== "string" || !signature.startsWith("0x")) {
+    throw new Error(
+      "The wallet returned an invalid signature for backend sign-in.",
+    )
+  }
+
+  return signature
 }
 
 export function AuthSessionProvider({ children }: PropsWithChildren) {
@@ -188,9 +251,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     setErrorMessage(normalized.message)
   }, [])
 
-  const refreshSession = useCallback(async () => {
-    const activeSession = session
-
+  const refreshSession = useCallback(async (activeSession = session) => {
     if (!activeSession?.accessToken) {
       setCurrentSession(null)
       return null
@@ -249,7 +310,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       return
     }
 
-    setSession(storedSession)
+    setSession((currentSession) =>
+      isSameSession(currentSession, storedSession) ? currentSession : storedSession,
+    )
     setStatus("authenticated")
     setErrorMessage(null)
     setErrorTitle(null)
@@ -260,7 +323,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
 
     setStatus("restoring")
 
-    void refreshSession()
+    void refreshSession(storedSession)
       .then(() => {
         setStatus("authenticated")
       })
@@ -320,12 +383,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     setErrorTitle(null)
 
     try {
-      const challenge = await agentCommerceApi.createAuthChallenge({
-        address: wallet.initiaAddress,
-        chainId: agentCommerceConfig.appchain.interwovenChainId,
-        algo: "secp256k1",
-      })
-
       const accounts = await offlineSigner.getAccounts()
       const activeAccount =
         accounts.find((account) => account.address === wallet.initiaAddress) ??
@@ -335,23 +392,83 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         throw new Error("The connected wallet did not return a signable Initia account.")
       }
 
+      const detectedAlgo = normalizeSignerAlgo(
+        (activeAccount as { algo?: string | null | undefined }).algo,
+      )
+      const challenge = await agentCommerceApi.createAuthChallenge({
+        address: wallet.initiaAddress,
+        chainId: agentCommerceConfig.appchain.interwovenChainId,
+        algo: detectedAlgo,
+      })
+
+      if (detectedAlgo === "ethsecp256k1") {
+        if (!wallet.hexAddress) {
+          throw new Error(
+            "The connected wallet did not expose an EVM address for backend sign-in.",
+          )
+        }
+
+        const signature = await signMessageWithPersonalSign(
+          challenge.data.message,
+          wallet.hexAddress,
+        )
+        const verified = await agentCommerceApi.verifyAuthChallenge({
+          address: wallet.initiaAddress,
+          chainId: challenge.data.chainId,
+          nonce: challenge.data.nonce,
+          signature,
+          algo: detectedAlgo,
+          method: "eip191",
+        })
+
+        if (storageKey) {
+          persistSession(storageKey, verified.data)
+        }
+
+        setSession(verified.data)
+        setCurrentSession({
+          user: verified.data.user,
+          activeWallet: verified.data.activeWallet,
+        })
+        setStatus("authenticated")
+        return verified.data
+      }
+
       const signDoc = makeAdr36AminoSignDoc(
         wallet.initiaAddress,
         challenge.data.message,
       )
       const signed = await offlineSigner.signAmino(wallet.initiaAddress, signDoc)
-      const algo = normalizeSignerAlgo(
-        (activeAccount as { algo?: string | null | undefined }).algo,
+      const signedPublicKey = getSignedPublicKeyBase64(
+        signed,
+        activeAccount.pubkey,
       )
+      const verifyWithAlgo = (algo: "secp256k1" | "ethsecp256k1") =>
+        agentCommerceApi.verifyAuthChallenge({
+          address: wallet.initiaAddress,
+          chainId: challenge.data.chainId,
+          nonce: challenge.data.nonce,
+          signature: signed.signature.signature,
+          publicKey: signedPublicKey,
+          algo,
+          signDoc: signed.signed,
+        })
 
-      const verified = await agentCommerceApi.verifyAuthChallenge({
-        address: wallet.initiaAddress,
-        chainId: challenge.data.chainId,
-        nonce: challenge.data.nonce,
-        signature: signed.signature.signature,
-        publicKey: getSignedPublicKeyBase64(signed, activeAccount.pubkey),
-        algo,
-      })
+      let verified
+      try {
+        verified = await verifyWithAlgo(detectedAlgo)
+      } catch (error) {
+        const alternateAlgo = getAlternateSignerAlgo(detectedAlgo)
+        if (
+          error instanceof AgentCommerceApiError &&
+          error.status === 401 &&
+          alternateAlgo !== detectedAlgo
+        ) {
+          verified = await verifyWithAlgo(alternateAlgo)
+        } else {
+          throw error
+        }
+      }
 
       if (storageKey) {
         persistSession(storageKey, verified.data)
@@ -374,6 +491,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     persistSession,
     setAuthError,
     storageKey,
+    wallet.hexAddress,
     wallet.initiaAddress,
     wallet.isConnected,
   ])

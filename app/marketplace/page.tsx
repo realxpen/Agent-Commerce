@@ -27,14 +27,12 @@ export default function MarketplacePage() {
               surface="agent_profile"
               showSessionStatus={false}
             />
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">
-                Dashboard
-              </Button>
-            </Link>
-            <Link href="/dashboard/create">
-              <Button size="sm">Deploy Agent</Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/dashboard/create">Deploy Agent</Link>
+            </Button>
           </div>
         </div>
       </header>

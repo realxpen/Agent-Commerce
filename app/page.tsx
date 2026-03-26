@@ -21,9 +21,9 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-4">
             <WalletSessionControls surface="general" showSessionStatus={false} />
-            <Link href="/dashboard/create">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            <Button asChild size="sm">
+              <Link href="/dashboard/create">Get Started</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -66,17 +66,15 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/dashboard/create">
-              <Button size="lg" className="h-12 px-8 text-base">
+            <Button asChild size="lg" className="h-12 px-8 text-base">
+              <Link href="/dashboard/create">
                 Deploy Your First Agent
                 <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </Link>
-            <Link href="/marketplace">
-              <Button variant="outline" size="lg" className="h-12 px-8 text-base">
-                Browse Marketplace
-              </Button>
-            </Link>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base">
+              <Link href="/marketplace">Browse Marketplace</Link>
+            </Button>
           </motion.div>
 
           {/* Product Preview */}
@@ -210,16 +208,12 @@ export default function LandingPage() {
             Join 5,000+ businesses using AgentCommerce to automate their operations and revenue.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link href="/dashboard/create">
-              <Button size="lg" className="h-14 px-10 text-lg">
-                Start Building Now
-              </Button>
-            </Link>
-            <Link href="/marketplace">
-              <Button variant="outline" size="lg" className="h-14 px-10 text-lg">
-                Explore Marketplace
-              </Button>
-            </Link>
+            <Button asChild size="lg" className="h-14 px-10 text-lg">
+              <Link href="/dashboard/create">Start Building Now</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg">
+              <Link href="/marketplace">Explore Marketplace</Link>
+            </Button>
           </div>
         </section>
       </main>

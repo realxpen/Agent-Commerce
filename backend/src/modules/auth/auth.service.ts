@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { fromBase64, fromBech32, normalizeBech32 } from "@cosmjs/encoding";
+import { fromBase64, fromBech32, normalizeBech32, toBech32 } from "@cosmjs/encoding";
 import {
   UserStatus,
   WalletStatus,
@@ -9,8 +9,12 @@ import {
   type PrismaClient,
   type User,
 } from "@prisma/client";
-import { verifyADR36Amino } from "@keplr-wallet/cosmos";
+import { verifyADR36Amino, verifyADR36AminoSignDoc } from "@keplr-wallet/cosmos";
+import { Hash, PubKeySecp256k1 } from "@keplr-wallet/crypto";
+import { serializeSignDoc } from "@keplr-wallet/cosmos/build/signing/index.js";
+import type { StdSignDoc } from "@keplr-wallet/types";
 import type { Redis } from "ioredis";
+import { getAddress, recoverMessageAddress } from "viem";
 import { z } from "zod";
 
 import { issueAccessToken } from "../../lib/jwt.js";
@@ -43,6 +47,21 @@ type StoredChallenge = z.infer<typeof storedChallengeSchema>;
 
 type AuthStore = PrismaClient | Prisma.TransactionClient;
 
+function getWalletAuthMethodMetadata(input: Pick<VerifyWalletAuthBody, "method" | "algo" | "publicKey">) {
+  if (input.method === "eip191") {
+    return {
+      authMethod: "eip191_personal_sign",
+      algo: input.algo,
+    } satisfies Prisma.InputJsonObject;
+  }
+
+  return {
+    authMethod: "cosmos_adr36",
+    publicKey: input.publicKey ?? null,
+    algo: input.algo,
+  } satisfies Prisma.InputJsonObject;
+}
+
 function getChallengeKey(nonce: string) {
   return `${env.REDIS_PREFIX}:auth:challenge:${nonce}`;
 }
@@ -74,38 +93,220 @@ function verifyAdr36Signature(input: {
   publicKey: Uint8Array;
   signature: Uint8Array;
   algo: "secp256k1" | "ethsecp256k1";
+  signDoc?: {
+    chain_id: string;
+    account_number: string;
+    sequence: string;
+    fee: {
+      gas: string;
+      amount: ReadonlyArray<{
+        denom: string;
+        amount: string;
+      }>;
+    };
+    msgs: ReadonlyArray<{
+      type: string;
+      value: {
+        signer: string;
+        data: string;
+      };
+    }>;
+    memo: string;
+  };
 }) {
+  const algosToTry =
+    input.algo === "ethsecp256k1"
+      ? (["ethsecp256k1", "secp256k1"] as const)
+      : (["secp256k1", "ethsecp256k1"] as const);
+  const diagnostics: string[] = [];
+
+  for (const algo of algosToTry) {
+    try {
+      if (
+        (input.signDoc
+          ? verifyADR36AminoSignDoc(
+              input.bech32Prefix,
+              input.signDoc,
+              input.publicKey,
+              input.signature,
+              algo,
+            )
+          : verifyADR36Amino(
+              input.bech32Prefix,
+              input.address,
+              input.message,
+              input.publicKey,
+              input.signature,
+              algo,
+            ))
+      ) {
+        return true;
+      }
+
+      diagnostics.push(`${algo}: verify returned false`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Wallet signature verification failed";
+      diagnostics.push(`${algo}: ${message}`);
+
+      if (
+        message.includes("Unmatched signer") ||
+        message.includes("Invalid sign doc for ADR-36") ||
+        message.includes("Chain id should be empty string") ||
+        message.includes("Memo should be empty string") ||
+        message.includes("Account number should be") ||
+        message.includes("Sequence should be") ||
+        message.includes("Gas should be") ||
+        message.includes("Fee amount should be") ||
+        message.includes("Invalid type of ADR-36 sign msg") ||
+        message.includes("Empty signer") ||
+        message.includes("Empty data") ||
+        message.includes("Data is not encoded by base64")
+      ) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  if (input.signDoc) {
+    try {
+      const cryptoPubKey = new PubKeySecp256k1(input.publicKey);
+      const serializedSignDoc = serializeSignDoc(input.signDoc as StdSignDoc);
+      const signer = input.signDoc.msgs[0]?.value?.signer;
+      const derivedCosmosSigner = toBech32(
+        input.bech32Prefix,
+        cryptoPubKey.getCosmosAddress(),
+      );
+      const derivedEthSigner = toBech32(
+        input.bech32Prefix,
+        cryptoPubKey.getEthAddress(),
+      );
+
+      const digests = [
+        { label: "sha256", value: Hash.sha256(serializedSignDoc) },
+        { label: "keccak256", value: Hash.keccak256(serializedSignDoc) },
+      ] as const;
+
+      const signerVariants = [
+        { label: "cosmos", value: derivedCosmosSigner },
+        { label: "eth", value: derivedEthSigner },
+      ] as const;
+
+      for (const signerVariant of signerVariants) {
+        if (signerVariant.value !== signer) {
+          continue;
+        }
+
+        for (const digest of digests) {
+          if (cryptoPubKey.verifyDigest32(digest.value, input.signature)) {
+            console.info(
+              "[agent-commerce auth] ADR-36 fallback verifier accepted signature:",
+              `${signerVariant.label}+${digest.label}`,
+            );
+            return true;
+          }
+          diagnostics.push(
+            `fallback:${signerVariant.label}+${digest.label}=false`,
+          );
+        }
+      }
+    } catch (error) {
+      diagnostics.push(
+        `fallback:error:${error instanceof Error ? error.message : "unknown"}`,
+      );
+    }
+  }
+
   try {
-    return verifyADR36Amino(
-      input.bech32Prefix,
-      input.address,
-      input.message,
-      input.publicKey,
-      input.signature,
-      input.algo,
+    const cryptoPubKey = new PubKeySecp256k1(input.publicKey);
+    diagnostics.push(
+      `derived:${toBech32(input.bech32Prefix, cryptoPubKey.getCosmosAddress())}|${toBech32(input.bech32Prefix, cryptoPubKey.getEthAddress())}`,
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Wallet signature verification failed";
-
-    if (
-      message.includes("Unmatched signer") ||
-      message.includes("Invalid sign doc for ADR-36") ||
-      message.includes("Chain id should be empty string") ||
-      message.includes("Memo should be empty string") ||
-      message.includes("Account number should be") ||
-      message.includes("Sequence should be") ||
-      message.includes("Gas should be") ||
-      message.includes("Fee amount should be") ||
-      message.includes("Invalid type of ADR-36 sign msg") ||
-      message.includes("Empty signer") ||
-      message.includes("Empty data") ||
-      message.includes("Data is not encoded by base64")
-    ) {
-      throw createHttpError(401, "Wallet signature verification failed");
-    }
-
-    throw error;
+    diagnostics.push(
+      `derived:error:${error instanceof Error ? error.message : "unknown"}`,
+    );
   }
+
+  diagnostics.push(
+    `bytes:pub=${input.publicKey.length},sig=${input.signature.length}`,
+  );
+  if (input.signDoc) {
+    diagnostics.push(
+      `signdoc:${input.signDoc.chain_id}|${input.signDoc.memo}|${input.signDoc.msgs[0]?.type ?? "missing"}`,
+    );
+  }
+
+  console.error(
+    "[agent-commerce auth] ADR-36 verification diagnostics:",
+    diagnostics.join(" ; "),
+  );
+
+  throw createHttpError(401, "Wallet signature verification failed");
+}
+
+function normalizeHexSignature(signature: string) {
+  const trimmedSignature = signature.trim();
+  return (
+    trimmedSignature.startsWith("0x")
+      ? trimmedSignature
+      : `0x${trimmedSignature}`
+  ) as `0x${string}`;
+}
+
+function getExpectedEvmAddress(address: string) {
+  const { data } = fromBech32(address);
+
+  if (data.length !== 20) {
+    throw createHttpError(400, "Invalid wallet address");
+  }
+
+  return getAddress(`0x${Buffer.from(data).toString("hex")}` as `0x${string}`);
+}
+
+async function verifyEip191Signature(input: {
+  address: string;
+  message: string;
+  signature: string;
+}) {
+  let recoveredAddress: `0x${string}`;
+  let expectedAddress: `0x${string}`;
+
+  try {
+    expectedAddress = getExpectedEvmAddress(input.address);
+    recoveredAddress = getAddress(
+      await recoverMessageAddress({
+        message: input.message,
+        signature: normalizeHexSignature(input.signature),
+      }),
+    );
+  } catch (error) {
+    console.error(
+      "[agent-commerce auth] EIP-191 verification diagnostics:",
+      error instanceof Error ? error.message : "unknown",
+    );
+    throw createHttpError(401, "Wallet signature verification failed");
+  }
+
+  if (recoveredAddress !== expectedAddress) {
+    console.error(
+      "[agent-commerce auth] EIP-191 verification diagnostics:",
+      `expected:${expectedAddress} ; recovered:${recoveredAddress}`,
+    );
+    throw createHttpError(401, "Wallet signature verification failed");
+  }
+}
+
+function normalizeAdr36Signature(signature: Uint8Array) {
+  // Some ethsecp256k1 wallet adapters append a recovery byte (65 bytes total).
+  // Keplr's ADR-36 verifier expects the raw r||s pair (64 bytes).
+  if (signature.length === 65) {
+    return signature.slice(0, 64);
+  }
+
+  return signature;
 }
 
 function buildAuthMessage(input: {
@@ -309,29 +510,52 @@ export async function verifyWalletAuthChallenge(
 
   const bech32Prefix = getWalletAddressPrefix(address);
 
-  let publicKey: Uint8Array;
-  let signature: Uint8Array;
-  try {
-    publicKey = fromBase64(input.publicKey);
-    signature = fromBase64(input.signature);
-  } catch {
-    throw createHttpError(400, "publicKey and signature must be valid base64 strings");
-  }
+  if (input.method === "eip191") {
+    await verifyEip191Signature({
+      address,
+      message: challenge.message,
+      signature: input.signature,
+    });
+  } else {
+    let publicKey: Uint8Array;
+    let signature: Uint8Array;
+    try {
+      publicKey = fromBase64(input.publicKey!);
+      signature = normalizeAdr36Signature(fromBase64(input.signature));
+    } catch {
+      throw createHttpError(400, "publicKey and signature must be valid base64 strings");
+    }
 
-  const isValid = verifyAdr36Signature({
-    bech32Prefix,
-    address,
-    message: challenge.message,
-    publicKey,
-    signature,
-    algo: input.algo,
-  });
+    verifyAdr36Signature({
+      bech32Prefix,
+      address,
+      message: challenge.message,
+      publicKey,
+      signature,
+      algo: input.algo,
+      signDoc: input.signDoc,
+    });
 
-  if (!isValid) {
-    throw createHttpError(401, "Wallet signature verification failed");
+    if (input.signDoc) {
+      const signedMessage = Buffer.from(
+        input.signDoc.msgs[0]?.value?.data ?? "",
+        "base64",
+      ).toString("utf8");
+
+      if (
+        input.signDoc.msgs[0]?.value?.signer !== address ||
+        signedMessage !== challenge.message
+      ) {
+        throw createHttpError(401, "Wallet signature verification failed");
+      }
+    }
   }
 
   const now = new Date();
+  const walletAuthMetadata = {
+    ...getWalletAuthMethodMetadata(input),
+    lastVerifiedAt: now.toISOString(),
+  } satisfies Prisma.InputJsonObject;
 
   const session = await db.$transaction(async (tx) => {
     const existingWallet = await tx.wallet.findUnique({
@@ -386,12 +610,7 @@ export async function verifyWalletAuthChallenge(
           type: WalletType.EXTERNAL,
           status: WalletStatus.ACTIVE,
           isPrimary: existingWalletCount === 0,
-          metadata: {
-            authMethod: "cosmos_adr36",
-            publicKey: input.publicKey,
-            algo: input.algo,
-            lastVerifiedAt: now.toISOString(),
-          } satisfies Prisma.InputJsonObject,
+          metadata: walletAuthMetadata,
           lastUsedAt: now,
         },
       });
@@ -405,12 +624,7 @@ export async function verifyWalletAuthChallenge(
         data: {
           userId,
           status: WalletStatus.ACTIVE,
-          metadata: {
-            authMethod: "cosmos_adr36",
-            publicKey: input.publicKey,
-            algo: input.algo,
-            lastVerifiedAt: now.toISOString(),
-          } satisfies Prisma.InputJsonObject,
+          metadata: walletAuthMetadata,
           lastUsedAt: now,
         },
       });
@@ -435,6 +649,9 @@ export async function verifyWalletAuthChallenge(
       isNewUser,
       linkedWallet,
     });
+  }, {
+    maxWait: 10_000,
+    timeout: 20_000,
   });
 
   await consumeChallenge(redis, challenge.nonce);
