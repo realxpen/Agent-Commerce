@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Bot, ChevronLeft } from "lucide-react"
 import { WalletAccountCard } from "@/components/wallet/WalletAccountCard"
@@ -29,31 +28,13 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <WalletAccountCard />
-              
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-black px-2 text-muted-foreground">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="border-white/10 bg-white/5 h-11">
-                  Google
-                </Button>
-                <Button variant="outline" className="border-white/10 bg-white/5 h-11">
-                  GitHub
-                </Button>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+                Wallet sign-in is the only live login path in this deployment. Social login buttons were removed so this screen only shows working auth options.
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4 text-center pb-10">
               <p className="text-sm text-muted-foreground px-6">
-                By connecting your wallet, you agree to our{" "}
-                <Link href="#" className="underline underline-offset-4 hover:text-white">Terms of Service</Link>{" "}
-                and{" "}
-                <Link href="#" className="underline underline-offset-4 hover:text-white">Privacy Policy</Link>.
+                By connecting your wallet, you create a live AgentCommerce session tied to your on-chain account for drafts, checkout, and dashboard data.
               </p>
             </CardFooter>
           </Card>

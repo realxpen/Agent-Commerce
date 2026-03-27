@@ -211,7 +211,7 @@ function buildOverviewCards(input: {
       value: formatRevenueValue(input.stats),
       description: input.stats
         ? `${input.stats.totals.pendingRevenue} pending payout`
-        : "Revenue sync will appear here once backend stats are available.",
+        : "Revenue data is unavailable because backend stats are not loaded here.",
     },
     {
       id: "orders",
@@ -383,7 +383,7 @@ export function useDashboardOverview() {
         tone: "neutral",
         title: "Connect your account to load your workspace",
         description:
-          "Revenue, orders, and recent activity will appear here once your wallet is connected.",
+          "Connect your wallet to load revenue, orders, and recent activity for this workspace.",
       }
     }
 

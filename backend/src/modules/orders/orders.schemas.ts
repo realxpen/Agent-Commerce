@@ -21,6 +21,13 @@ const expectedPaymentSchema = z.object({
   txHash: trimmedString.min(3).max(256).optional(),
 });
 
+const orderReferenceSchema = z.object({
+  type: z.enum(["image", "video", "document", "link"]),
+  label: trimmedString.min(1).max(120),
+  url: z.string().trim().url().max(2048),
+  note: trimmedString.min(1).max(1000).optional(),
+});
+
 export const orderParamsSchema = z.object({
   orderId: z.string().cuid(),
 });
@@ -37,6 +44,7 @@ export const createOrderBodySchema = z.object({
   agentServiceId: z.string().cuid(),
   quantity: z.coerce.number().int().min(1).max(100).default(1),
   customerNote: trimmedString.min(1).max(4000).optional(),
+  customerReferences: z.array(orderReferenceSchema).max(8).optional(),
   paymentReference: trimmedString.min(2).max(128).optional(),
   txHash: trimmedString.min(3).max(256).optional(),
   expectedPayment: expectedPaymentSchema.optional(),

@@ -6,9 +6,14 @@ import {
   ArrowRightLeft,
   Bot,
   Clock3,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  Link2,
   Package,
   ReceiptText,
   ShieldCheck,
+  Video,
 } from "lucide-react"
 import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
 import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
@@ -40,6 +45,20 @@ function readServiceSummary(snapshot: JsonValue) {
   return {
     description:
       typeof snapshot.description === "string" ? snapshot.description : null,
+  }
+}
+
+function getReferenceIcon(type: "image" | "video" | "document" | "link") {
+  switch (type) {
+    case "image":
+      return ImageIcon
+    case "video":
+      return Video
+    case "document":
+      return FileText
+    case "link":
+    default:
+      return Link2
   }
 }
 
@@ -157,7 +176,7 @@ export default function OrderDetailPage() {
                     Payment
                   </p>
                   <p className="mt-2 text-lg font-semibold text-white">
-                    {detail.amountLabel ?? "Syncing payment details"}
+                    {detail.amountLabel ?? "Payment amount not available in this view"}
                   </p>
                   <p className="mt-2 text-sm text-white/45">
                     Status: {detail.paymentStatus}
@@ -183,7 +202,7 @@ export default function OrderDetailPage() {
                   <p className="mt-2 break-all text-sm font-semibold text-white">
                     {detail.order?.payment.reference ??
                       detail.primaryTransaction?.paymentReference ??
-                      "Will appear as backend indexing catches up"}
+                      "Not available in this view yet"}
                   </p>
                 </div>
 
@@ -223,11 +242,82 @@ export default function OrderDetailPage() {
             </Card>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <OrderDeliveryPreviewCard
-                deliveryUrl={detail.order?.delivery.url}
-                deliveryText={detail.order?.delivery.text}
-                deliveredAt={detail.order?.delivery.deliveredAt}
-              />
+              <div className="space-y-6">
+                <Card className="glass-card border-white/5">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-display font-bold">
+                      Customer Brief
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/70">
+                      {detail.order?.customerNote ? (
+                        <p className="whitespace-pre-wrap">{detail.order.customerNote}</p>
+                      ) : (
+                        <p>
+                          The customer did not add a written brief for this order.
+                        </p>
+                      )}
+                    </div>
+
+                    {detail.order?.customerReferences.length ? (
+                      <div className="space-y-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                          Reference Materials
+                        </p>
+                        {detail.order.customerReferences.map((reference, index) => {
+                          const ReferenceIcon = getReferenceIcon(reference.type)
+
+                          return (
+                            <div
+                              key={`${reference.url}-${index}`}
+                              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                                    <ReferenceIcon className="h-4 w-4 text-indigo-300" />
+                                    <span>{reference.label}</span>
+                                  </div>
+                                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                                    {reference.type}
+                                  </p>
+                                </div>
+
+                                <Link
+                                  href={reference.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  Open
+                                </Link>
+                              </div>
+
+                              <p className="mt-3 break-all text-sm text-white/50">
+                                {reference.url}
+                              </p>
+
+                              {reference.note ? (
+                                <p className="mt-3 text-sm text-white/65">
+                                  {reference.note}
+                                </p>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                <OrderDeliveryPreviewCard
+                  deliveryUrl={detail.order?.delivery.url}
+                  deliveryText={detail.order?.delivery.text}
+                  deliveredAt={detail.order?.delivery.deliveredAt}
+                />
+              </div>
 
               <Card className="glass-card border-white/5">
                 <CardHeader>
@@ -257,12 +347,12 @@ export default function OrderDetailPage() {
                       <Clock3 className="mt-0.5 h-5 w-5 text-indigo-400" />
                       <div>
                         <p className="font-semibold text-white">
-                          Backend indexing catches up after chain confirmation
+                          Backend indexing can lag behind chain confirmation
                         </p>
                         <p className="mt-1 text-sm text-white/55">
-                          The transaction hash usually appears first, followed by
-                          richer lifecycle and delivery updates once indexing
-                          finishes.
+                          The transaction hash often lands before the richer
+                          backend order fields. If some sections are empty, the
+                          chain transaction may be ahead of the indexed record.
                         </p>
                       </div>
                     </div>
@@ -329,11 +419,11 @@ export default function OrderDetailPage() {
                       <Package className="mt-0.5 h-5 w-5 text-indigo-400" />
                       <div>
                         <p className="font-semibold text-white">
-                          Activity will appear here soon
+                          No indexed activity yet
                         </p>
                         <p className="mt-1">
-                          As payment and fulfillment events arrive from the backend,
-                          they will show up here for quick visibility.
+                          This order does not have indexed payment or task
+                          activity records available yet.
                         </p>
                       </div>
                     </div>
@@ -346,7 +436,8 @@ export default function OrderDetailPage() {
           <div className="space-y-8">
             <OrderNextActionCard
               viewerRole={detail.viewerRole}
-              onViewerRoleChange={detail.setViewerRole}
+              viewerRoleLabel={detail.viewerRoleLabel}
+              viewerRoleDescription={detail.viewerRoleDescription}
               nextAction={detail.nextAction}
               deliveryUrlInput={detail.deliveryUrlInput}
               onDeliveryUrlChange={detail.setDeliveryUrlInput}

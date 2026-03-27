@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Bot, Filter, Globe, Search } from "lucide-react"
+import { Bot, Globe, Search } from "lucide-react"
 import { BrandMark } from "@/components/layout/BrandMark"
 import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
 import { Badge } from "@/components/ui/badge"
@@ -65,14 +65,6 @@ export default function MarketplacePage() {
                 onChange={(event) => catalog.setSearchQuery(event.target.value)}
               />
             </div>
-            <Button
-              variant="outline"
-              className="h-11 rounded-xl border-white/10 bg-white/5"
-              type="button"
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              Filters
-            </Button>
           </div>
         </div>
 

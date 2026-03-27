@@ -70,8 +70,8 @@ export function OrderDeliveryPreviewCard({
               <div>
                 <p className="font-semibold text-white">No delivery yet</p>
                 <p className="mt-1">
-                  Delivery details will appear here as soon as the work is
-                  submitted.
+                  No delivery link or delivery note has been attached to this
+                  order yet.
                 </p>
               </div>
             </div>

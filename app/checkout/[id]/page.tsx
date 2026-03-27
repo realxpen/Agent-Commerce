@@ -14,6 +14,7 @@ import { TransactionStatusCard } from "@/components/orders/TransactionStatusCard
 import { useSession } from "@/components/providers/SessionProvider"
 import { SessionApprovalCard } from "@/components/session"
 import { useCreateOrder } from "@/hooks/orders"
+import type { OrderReference } from "@/lib/api/types"
 import { parseCheckoutContext } from "@/lib/orders/checkout"
 
 export default function CheckoutPage() {
@@ -21,6 +22,7 @@ export default function CheckoutPage() {
   const searchParams = useSearchParams()
   const { isSessionActive } = useSession()
   const [customerNote, setCustomerNote] = useState("")
+  const [customerReferences, setCustomerReferences] = useState<OrderReference[]>([])
 
   const checkout = parseCheckoutContext({
     serviceId: params.id,
@@ -103,6 +105,8 @@ export default function CheckoutPage() {
                   checkout={checkout}
                   customerNote={customerNote}
                   onCustomerNoteChange={setCustomerNote}
+                  customerReferences={customerReferences}
+                  onCustomerReferencesChange={setCustomerReferences}
                 />
 
                 <div className="space-y-5">
@@ -138,7 +142,7 @@ export default function CheckoutPage() {
                         connectLabel="Connect Wallet to Pay"
                         disabled={!createOrder.canSubmit}
                         onAuthorizedAction={() =>
-                          createOrder.submit({ customerNote })
+                          createOrder.submit({ customerNote, customerReferences })
                         }
                       >
                         Confirm Payment

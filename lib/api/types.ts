@@ -6,6 +6,15 @@ export type JsonValue =
   | { [key: string]: JsonValue }
   | JsonValue[]
 
+export type OrderReferenceType = "image" | "video" | "document" | "link"
+
+export type OrderReference = {
+  type: OrderReferenceType
+  label: string
+  url: string
+  note: string | null
+}
+
 export type AgentStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED"
 export type AgentPricingModel =
   | "FIXED_PRICE"
@@ -151,6 +160,7 @@ export type OrderDto = {
     quantity: number
   }
   customerNote: string | null
+  customerReferences: OrderReference[]
   payment: {
     reference: string | null
     txHash: string | null
@@ -357,6 +367,7 @@ export type CreateOrderRecordInput = {
   agentServiceId: string
   quantity?: number
   customerNote?: string
+  customerReferences?: OrderReference[]
   paymentReference?: string
   txHash?: string
   expectedPayment?: {

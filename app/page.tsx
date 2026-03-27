@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { motion } from "motion/react"
 import { Button } from "@/components/ui/button"
-import { Bot, Zap, Shield, Globe, ArrowRight, TrendingUp, DollarSign, Activity } from "lucide-react"
+import { Bot, Zap, Shield, Globe, ArrowRight } from "lucide-react"
+import { LandingLivePreview } from "@/components/landing/LandingLivePreview"
 import { BrandMark } from "@/components/layout/BrandMark"
 import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
 
@@ -77,60 +78,12 @@ export default function LandingPage() {
             </Button>
           </motion.div>
 
-          {/* Product Preview */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative mt-20 max-w-6xl mx-auto"
           >
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-20 animate-pulse"></div>
-            <div className="relative glass-card rounded-2xl overflow-hidden border border-white/10">
-              <div className="bg-white/5 border-b border-white/10 px-4 py-3 flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-white/10"></div>
-                  <div className="w-3 h-3 rounded-full bg-white/10"></div>
-                  <div className="w-3 h-3 rounded-full bg-white/10"></div>
-                </div>
-                <div className="mx-auto bg-black/20 rounded-md px-4 py-1 text-[10px] text-white/40 font-mono">
-                  agent-commerce.app/dashboard
-                </div>
-              </div>
-              <div className="p-6 md:p-10 bg-black/40">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div className="glass p-4 rounded-xl space-y-2">
-                    <p className="text-xs text-white/40 uppercase tracking-wider font-semibold">Total Revenue</p>
-                    <p className="text-2xl font-bold">$45,231.89</p>
-                    <div className="flex items-center gap-1 text-emerald-400 text-xs">
-                      <TrendingUp className="w-3 h-3" />
-                      <span>+20.1%</span>
-                    </div>
-                  </div>
-                  <div className="glass p-4 rounded-xl space-y-2">
-                    <p className="text-xs text-white/40 uppercase tracking-wider font-semibold">Active Agents</p>
-                    <p className="text-2xl font-bold">12</p>
-                    <div className="flex items-center gap-1 text-indigo-400 text-xs">
-                      <Activity className="w-3 h-3" />
-                      <span>8 running tasks</span>
-                    </div>
-                  </div>
-                  <div className="glass p-4 rounded-xl space-y-2">
-                    <p className="text-xs text-white/40 uppercase tracking-wider font-semibold">On-Chain Payouts</p>
-                    <p className="text-2xl font-bold">342</p>
-                    <div className="flex items-center gap-1 text-white/40 text-xs">
-                      <DollarSign className="w-3 h-3" />
-                      <span>Settled in USDC</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="glass rounded-xl p-6 h-64 flex items-center justify-center border-dashed border-white/10">
-                  <div className="text-center space-y-2">
-                    <Bot className="w-12 h-12 text-indigo-500 mx-auto opacity-50" />
-                    <p className="text-sm text-white/40">Real-time agent activity stream</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <LandingLivePreview />
           </motion.div>
         </section>
 
@@ -205,7 +158,7 @@ export default function LandingPage() {
         <section className="container mx-auto px-6 py-32 text-center space-y-8">
           <h2 className="text-4xl md:text-6xl font-display font-bold tracking-tight">Ready to hire your first <br /> digital employee?</h2>
           <p className="text-white/60 max-w-xl mx-auto">
-            Join 5,000+ businesses using AgentCommerce to automate their operations and revenue.
+            Start with live agents, real services, and a marketplace powered by backend data instead of mock previews.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Button asChild size="lg" className="h-14 px-10 text-lg">
@@ -227,10 +180,10 @@ export default function LandingPage() {
             <span className="font-display font-bold text-lg tracking-tight">AgentCommerce</span>
           </div>
           <div className="flex gap-8 text-sm text-white/40">
-            <Link href="#" className="hover:text-white transition-colors">Twitter</Link>
-            <Link href="#" className="hover:text-white transition-colors">Discord</Link>
-            <Link href="#" className="hover:text-white transition-colors">Docs</Link>
-            <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
+            <Link href="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
+            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+            <Link href="/dashboard/create" className="hover:text-white transition-colors">Create Agent</Link>
+            <Link href="/login" className="hover:text-white transition-colors">Wallet Access</Link>
           </div>
           <p className="text-sm text-white/20">(c) 2026 AgentCommerce Inc. All rights reserved.</p>
         </div>

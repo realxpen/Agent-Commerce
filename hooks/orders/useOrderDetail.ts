@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useOrder, useTasks, useTransactions } from "@/hooks/api"
 import { apiQueryKeys } from "@/hooks/api/query-keys"
+import { useBackendAuth } from "@/hooks/auth"
 import { useServiceEscrowActions } from "@/hooks/contracts/useServiceEscrowActions"
 import { useSession } from "@/components/providers/SessionProvider"
 import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
@@ -15,6 +16,7 @@ type SearchParamReader = {
 }
 
 export type OrderViewerRole = "customer" | "agent_owner"
+type DerivedOrderViewerRole = OrderViewerRole | null
 
 type NextOrderActionKind =
   | "wait_payment"
@@ -66,9 +68,11 @@ function buildCustomerNextAction(input: {
   if (!input.order) {
     return {
       kind: "syncing",
-      title: input.pendingOnly ? "Payment is being confirmed" : "Order is syncing",
+      title: input.pendingOnly ? "Payment is being confirmed" : "Order details are unavailable",
       description:
-        "The richer backend order view is still catching up with the latest appchain state.",
+        input.pendingOnly
+          ? "This handoff only has the transaction context so far. The backend order record has not been indexed yet."
+          : "The backend has not returned an order record for this page yet.",
     }
   }
 
@@ -102,7 +106,7 @@ function buildCustomerNextAction(input: {
       kind: "wait_delivery",
       title: "The agent is working on your order",
       description:
-        "Everything is on track. You will see delivery details here as soon as the work is submitted.",
+        "Delivery details are not attached to this order yet.",
     }
   }
 
@@ -112,7 +116,7 @@ function buildCustomerNextAction(input: {
         kind: "syncing",
         title: "Delivery is ready for your review",
         description:
-          "The delivery arrived, and the final on-chain confirmation action will appear as soon as the order reference finishes syncing.",
+          "The delivery is already attached, but this page does not have the indexed on-chain order reference needed for final confirmation yet.",
       }
     }
 
@@ -138,9 +142,9 @@ function buildCustomerNextAction(input: {
 
   return {
     kind: "syncing",
-    title: "Order updates are still syncing",
+    title: "Order updates are unavailable",
     description:
-      "The order is moving through the workflow and this page will refresh as backend indexing catches up.",
+      "This page does not have enough indexed backend data to show the next customer action yet.",
   }
 }
 
@@ -151,9 +155,9 @@ function buildAgentOwnerNextAction(input: {
   if (!input.order) {
     return {
       kind: "syncing",
-      title: "Order details are still syncing",
+      title: "Order details are unavailable",
       description:
-        "Wait for the backend order record to finish syncing before taking the next fulfillment step.",
+        "This page cannot show fulfillment actions until the backend order record exists.",
     }
   }
 
@@ -188,7 +192,7 @@ function buildAgentOwnerNextAction(input: {
         kind: "syncing",
         title: "Ready to start work",
         description:
-          "The order is paid. The on-chain order reference is still syncing before you can mark it in progress here.",
+          "The order is paid, but this page does not have the indexed on-chain order reference needed to mark it in progress yet.",
       }
     }
 
@@ -209,7 +213,7 @@ function buildAgentOwnerNextAction(input: {
         kind: "syncing",
         title: "Prepare the delivery",
         description:
-          "The order is in progress. Delivery submission will appear here once the on-chain order reference is available.",
+          "The order is in progress, but delivery submission is unavailable here until the indexed on-chain order reference is present.",
       }
     }
 
@@ -245,10 +249,66 @@ function buildAgentOwnerNextAction(input: {
 
   return {
     kind: "syncing",
-    title: "Order updates are still syncing",
+    title: "Order updates are unavailable",
     description:
-      "The order is moving through the workflow and this page will refresh as backend indexing catches up.",
+      "This page does not have enough indexed backend data to show the next owner action yet.",
   }
+}
+
+function buildIdentityRequiredNextAction(options: {
+  order: OrderDto | null
+  pendingOnly: boolean
+  isAuthenticated: boolean
+}): OrderNextAction {
+  if (!options.isAuthenticated) {
+    return {
+      kind: "syncing",
+      title: "Unlock backend sync to identify your role",
+      description: options.pendingOnly
+        ? "This temporary handoff view is available, but live role-based actions require an authenticated backend session."
+        : "Connect the correct wallet and unlock backend sync to load the real customer or agent-owner actions for this order.",
+    }
+  }
+
+  if (options.order) {
+    return {
+      kind: "syncing",
+      title: "This order is not available for your active account",
+      description:
+        "The current backend session does not match the customer or the agent owner for this order, so role-specific actions are hidden.",
+    }
+  }
+
+  return {
+    kind: "syncing",
+    title: "Order identity is not available yet",
+    description:
+      "This page cannot derive a live role until the backend order record is available.",
+  }
+}
+
+function deriveViewerRole(options: {
+  order: OrderDto | null
+  authenticatedUserId: string | null
+  fallbackRole: OrderViewerRole | null
+}): DerivedOrderViewerRole {
+  if (!options.order) {
+    return options.fallbackRole
+  }
+
+  if (!options.authenticatedUserId) {
+    return null
+  }
+
+  if (options.order.customerId === options.authenticatedUserId) {
+    return "customer"
+  }
+
+  if (options.order.agent.ownerId === options.authenticatedUserId) {
+    return "agent_owner"
+  }
+
+  return null
 }
 
 export function useOrderDetail(options: {
@@ -259,6 +319,7 @@ export function useOrderDetail(options: {
   const queryClient = useQueryClient()
   const wallet = useWalletConnectionFlow()
   const session = useSession()
+  const auth = useBackendAuth()
   const escrow = useServiceEscrowActions()
 
   const isPendingOnly = searchParams.get("pending") === "1"
@@ -269,10 +330,12 @@ export function useOrderDetail(options: {
   const fallbackAgentName = searchParams.get("agentName")
   const onchainOrderId = parseBigIntCandidate(searchParams.get("onchainOrderId"))
 
-  const initialRole = isValidViewerRole(searchParams.get("role"))
-    ? (searchParams.get("role") as OrderViewerRole)
-    : "customer"
-  const [viewerRole, setViewerRole] = useState<OrderViewerRole>(initialRole)
+  const fallbackViewerRole =
+    isPendingOnly && isValidViewerRole(searchParams.get("role"))
+      ? (searchParams.get("role") as OrderViewerRole)
+      : isPendingOnly
+        ? "customer"
+        : null
   const [deliveryUrlInput, setDeliveryUrlInput] = useState("")
   const [deliveryTextInput, setDeliveryTextInput] = useState("")
   const [actionNotice, setActionNotice] = useState<string | null>(null)
@@ -332,6 +395,28 @@ export function useOrderDetail(options: {
   const paymentStatus = order?.paymentStatus ?? ("PENDING" as OrderPaymentStatus)
   const lifecycleStatus = order?.status ?? ("PENDING" as OrderStatus)
   const deliveryStatus = order?.deliveryStatus ?? ("PENDING" as DeliveryStatus)
+  const authenticatedUserId = auth.currentSession?.user.id ?? null
+
+  const viewerRole = useMemo<DerivedOrderViewerRole>(
+    () =>
+      deriveViewerRole({
+        order,
+        authenticatedUserId,
+        fallbackRole: fallbackViewerRole,
+      }),
+    [authenticatedUserId, fallbackViewerRole, order],
+  )
+
+  const viewerRoleLabel = viewerRole
+    ? viewerRole === "customer"
+      ? "Customer"
+      : "Agent Owner"
+    : "Role unavailable"
+  const viewerRoleDescription = viewerRole
+    ? "Derived from your authenticated backend session for this specific order."
+    : auth.isAuthenticated
+      ? "The active backend session does not map to the customer or owner for this order."
+      : "Unlock backend sync with the correct wallet to load live role-based order actions."
 
   const nextAction = useMemo(() => {
     return viewerRole === "customer"
@@ -340,11 +425,17 @@ export function useOrderDetail(options: {
           onchainOrderId,
           pendingOnly: isPendingOnly,
         })
-      : buildAgentOwnerNextAction({
+      : viewerRole === "agent_owner"
+        ? buildAgentOwnerNextAction({
           order,
           onchainOrderId,
         })
-  }, [isPendingOnly, onchainOrderId, order, viewerRole])
+        : buildIdentityRequiredNextAction({
+            order,
+            pendingOnly: isPendingOnly,
+            isAuthenticated: auth.isAuthenticated,
+          })
+  }, [auth.isAuthenticated, isPendingOnly, onchainOrderId, order, viewerRole])
 
   const refetchAll = useCallback(async () => {
     if (isPendingOnly || orderId.startsWith("pending-")) {
@@ -377,7 +468,7 @@ export function useOrderDetail(options: {
   const markInProgress = useCallback(async () => {
     if (onchainOrderId === null) {
       setActionNotice(
-        "The on-chain order reference is still syncing before this action can be completed here.",
+        "This action requires the indexed on-chain order reference, which is not available in this view yet.",
       )
       return null
     }
@@ -400,7 +491,7 @@ export function useOrderDetail(options: {
   const markDelivered = useCallback(async () => {
     if (onchainOrderId === null) {
       setActionNotice(
-        "The on-chain order reference is still syncing before delivery can be submitted here.",
+        "Delivery cannot be submitted here until the indexed on-chain order reference is available.",
       )
       return null
     }
@@ -454,7 +545,7 @@ export function useOrderDetail(options: {
   const confirmCompletion = useCallback(async () => {
     if (onchainOrderId === null) {
       setActionNotice(
-        "The final on-chain confirmation will appear as soon as the order reference finishes syncing.",
+        "Final confirmation is unavailable here until the indexed on-chain order reference is available.",
       )
       return null
     }
@@ -510,7 +601,8 @@ export function useOrderDetail(options: {
   return {
     wallet,
     viewerRole,
-    setViewerRole,
+    viewerRoleLabel,
+    viewerRoleDescription,
     isPendingOnly,
     onchainOrderId,
     order,

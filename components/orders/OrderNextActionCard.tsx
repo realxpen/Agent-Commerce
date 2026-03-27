@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSession } from "@/components/providers/SessionProvider"
 import type { OrderViewerRole } from "@/hooks/orders"
 import type { TransactionState } from "@/lib/transactions/types"
@@ -39,7 +38,8 @@ type NextActionShape = {
 
 export function OrderNextActionCard({
   viewerRole,
-  onViewerRoleChange,
+  viewerRoleLabel,
+  viewerRoleDescription,
   nextAction,
   deliveryUrlInput,
   onDeliveryUrlChange,
@@ -52,8 +52,9 @@ export function OrderNextActionCard({
   actionNotice,
   actionWarning,
 }: {
-  viewerRole: OrderViewerRole
-  onViewerRoleChange: (role: OrderViewerRole) => void
+  viewerRole: OrderViewerRole | null
+  viewerRoleLabel: string
+  viewerRoleDescription: string
   nextAction: NextActionShape
   deliveryUrlInput: string
   onDeliveryUrlChange: (value: string) => void
@@ -110,23 +111,18 @@ export function OrderNextActionCard({
         </div>
 
         <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-            View this order as
-          </p>
-          <Tabs
-            value={viewerRole}
-            onValueChange={(value) =>
-              onViewerRoleChange(value as OrderViewerRole)
-            }
-          >
-            <TabsList className="grid w-full grid-cols-2 bg-white/[0.03]">
-              <TabsTrigger value="customer">Customer</TabsTrigger>
-              <TabsTrigger value="agent_owner">Agent Owner</TabsTrigger>
-            </TabsList>
-          </Tabs>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
-            Role-aware actions are shown here in a lightweight preview mode until
-            the full backend identity bridge is wired in.
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+              Active Role
+            </p>
+            <p className="mt-2 font-semibold text-white">{viewerRoleLabel}</p>
+            <p className="mt-2">{viewerRoleDescription}</p>
+            {viewerRole === null ? (
+              <p className="mt-3 text-xs text-amber-200">
+                Live order actions stay hidden until AgentCommerce can confirm
+                who you are for this order.
+              </p>
+            ) : null}
           </div>
         </div>
       </CardHeader>

@@ -21,6 +21,7 @@ export const orderDtoSelect = {
   currency: true,
   denom: true,
   customerNote: true,
+  customerReferences: true,
   deliveryUrl: true,
   deliveryText: true,
   paymentReference: true,
@@ -96,6 +97,12 @@ export type OrderDto = {
     quantity: number;
   };
   customerNote: string | null;
+  customerReferences: Array<{
+    type: "image" | "video" | "document" | "link";
+    label: string;
+    url: string;
+    note: string | null;
+  }>;
   payment: {
     reference: string | null;
     txHash: string | null;

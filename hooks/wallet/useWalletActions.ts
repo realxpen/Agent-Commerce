@@ -15,7 +15,7 @@ function assertWalletConfigReady() {
 }
 
 export function useWalletActions() {
-  const { openBridge, openConnect, openWallet } = useInterwovenKit()
+  const { openBridge: launchBridge, openConnect, openWallet } = useInterwovenKit()
   const { disconnect } = useDisconnect()
 
   return {
@@ -27,10 +27,10 @@ export function useWalletActions() {
       assertWalletConfigReady()
       openWallet()
     }, [openWallet]),
-    openBridge: useCallback(() => {
+    openBridge: useCallback((defaultValues?: { srcChainId?: string; srcDenom?: string }) => {
       assertWalletConfigReady()
-      openBridge()
-    }, [openBridge]),
+      launchBridge(defaultValues)
+    }, [launchBridge]),
     switchNetwork: useCallback(async () => {
       assertWalletConfigReady()
       await switchToAgentCommerceAppchain()

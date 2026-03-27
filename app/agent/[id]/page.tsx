@@ -200,8 +200,8 @@ export default function AgentProfilePage() {
                   Backend stats
                 </h2>
                 <p className="mt-2 text-white/45">
-                  Revenue and treasury analytics will appear here when the backend
-                  dashboard endpoint is available.
+                  Revenue and treasury analytics are not available in this
+                  environment because the backend dashboard endpoint is missing.
                 </p>
               </div>
             )}

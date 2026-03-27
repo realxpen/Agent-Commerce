@@ -41,7 +41,7 @@ export default function DashboardPage() {
                   items={overview.recentActivity}
                   isLoading={overview.isLoading}
                   emptyTitle="No activity just yet"
-                  emptyDescription="As orders, payments, and AI runs begin flowing through the backend, they will show up here."
+                  emptyDescription="This workspace does not have indexed orders, payments, or task runs yet."
                 />
               </>
             )}

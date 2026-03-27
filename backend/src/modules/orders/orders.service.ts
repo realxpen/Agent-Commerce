@@ -25,6 +25,13 @@ type CreateOrderInput = CreateOrderBody & {
   customerId: string;
 };
 
+type OrderReferenceRecord = {
+  type: "image" | "video" | "document" | "link";
+  label: string;
+  url: string;
+  note: string | null;
+};
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.FAILED],
   [OrderStatus.PAID]: [
@@ -63,6 +70,63 @@ function toIsoString(value: Date | null) {
   return value ? value.toISOString() : null;
 }
 
+function normalizeOrderReferences(
+  value: CreateOrderBody["customerReferences"],
+): Prisma.InputJsonArray | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value.length === 0) {
+    return null;
+  }
+
+  return value.map((reference) => ({
+    type: reference.type,
+    label: reference.label.trim(),
+    url: reference.url.trim(),
+    note: normalizeOptionalString(reference.note) ?? null,
+  })) satisfies Prisma.InputJsonArray;
+}
+
+function toOrderReferenceList(
+  value: Prisma.JsonValue | null | undefined,
+): OrderReferenceRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const type =
+      entry.type === "image" ||
+      entry.type === "video" ||
+      entry.type === "document" ||
+      entry.type === "link"
+        ? entry.type
+        : null;
+    const label = typeof entry.label === "string" ? entry.label : null;
+    const url = typeof entry.url === "string" ? entry.url : null;
+    const note = typeof entry.note === "string" ? entry.note : null;
+
+    if (!type || !label || !url) {
+      return [];
+    }
+
+    return [
+      {
+        type,
+        label,
+        url,
+        note,
+      } satisfies OrderReferenceRecord,
+    ];
+  });
+}
+
 function toOrderDto(order: OrderRecord): OrderDto {
   return {
     id: order.id,
@@ -97,6 +161,7 @@ function toOrderDto(order: OrderRecord): OrderDto {
       quantity: order.quantity,
     },
     customerNote: order.customerNote,
+    customerReferences: toOrderReferenceList(order.customerReferences),
     payment: {
       reference: order.paymentReference,
       txHash: order.txHash,
@@ -322,6 +387,7 @@ export async function createOrder(db: PrismaClient, input: CreateOrderInput): Pr
     const paymentReference = normalizeOptionalString(input.paymentReference) ?? null;
     const txHash = normalizeOptionalString(input.txHash) ?? null;
     const customerNote = normalizeOptionalString(input.customerNote) ?? null;
+    const customerReferences = normalizeOrderReferences(input.customerReferences) ?? null;
     const expectedPaymentInfo: Prisma.InputJsonObject | undefined = input.expectedPayment
       ? {
           chainId: input.expectedPayment.chainId,
@@ -376,6 +442,12 @@ export async function createOrder(db: PrismaClient, input: CreateOrderInput): Pr
         currency: service.priceCurrency,
         denom: service.priceDenom,
         customerNote,
+        ...(customerReferences === undefined
+          ? {}
+          : {
+              customerReferences:
+                customerReferences === null ? Prisma.JsonNull : customerReferences,
+            }),
         paymentReference,
         txHash,
         expectedPaymentInfo,

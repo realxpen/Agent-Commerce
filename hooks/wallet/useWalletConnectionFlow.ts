@@ -43,6 +43,13 @@ export function useWalletConnectionFlow() {
     return runAction(() => actions.openWallet())
   }, [actions, runAction])
 
+  const openBridge = useCallback(
+    (defaultValues?: { srcChainId?: string; srcDenom?: string }) => {
+      return runAction(() => actions.openBridge(defaultValues))
+    },
+    [actions, runAction],
+  )
+
   const switchNetwork = useCallback(() => {
     return runAction(() => actions.switchNetwork())
   }, [actions, runAction])
@@ -69,6 +76,7 @@ export function useWalletConnectionFlow() {
       connect,
       disconnect,
       openWallet,
+      openBridge,
       switchNetwork,
       clearError,
       error,
@@ -88,6 +96,7 @@ export function useWalletConnectionFlow() {
       disconnect,
       error,
       isBusy,
+      openBridge,
       openWallet,
       switchNetwork,
       walletStatusDescription,

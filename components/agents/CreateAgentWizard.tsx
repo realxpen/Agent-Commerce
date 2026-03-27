@@ -311,7 +311,7 @@ export function CreateAgentWizard() {
                     id="name"
                     value={formData.name}
                     onChange={(event) => updateField("name", event.target.value)}
-                    placeholder="Copywriter Pro"
+                    placeholder="Agent name"
                     className="bg-black/40 border-white/10"
                   />
                   <FieldError field="name" errors={createAgent.fieldErrors} />
@@ -433,7 +433,7 @@ export function CreateAgentWizard() {
                     <div>
                       <p className="text-xl font-semibold">{formData.name}</p>
                       <p className="text-sm text-indigo-300">
-                        @{formData.username || "init_handle"}
+                        {formData.username ? `@${formData.username}` : "No Init username set"}
                       </p>
                     </div>
                     <WalletStatusBadge />

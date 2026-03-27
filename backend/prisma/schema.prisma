@@ -303,6 +303,7 @@ model Order {
   currency             String?
   denom                String
   customerNote         String?
+  customerReferences   Json?
   deliveryUrl          String?
   deliveryText         String?
   paymentReference     String?

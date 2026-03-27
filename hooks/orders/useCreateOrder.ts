@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useSession } from "@/components/providers/SessionProvider"
 import { useBackendAuth } from "@/hooks/auth"
 import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
-import type { OrderDto } from "@/lib/api/types"
+import type { OrderDto, OrderReference } from "@/lib/api/types"
 import { apiQueryKeys } from "@/hooks/api/query-keys"
 import { useContractAction } from "@/hooks/contracts/useContractAction"
 import { createOrderWithPayment } from "@/lib/contracts/service-escrow-client"
@@ -25,6 +25,7 @@ export type CreateOrderStage =
 
 export type CreateOrderInput = {
   customerNote: string
+  customerReferences: OrderReference[]
 }
 
 type CreateOrderSuccess = {
@@ -130,6 +131,19 @@ function getCreateOrderTransactionState(options: {
 function normalizeText(value: string) {
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+function normalizeReferences(value: OrderReference[]) {
+  const normalized = value
+    .map((reference) => ({
+      type: reference.type,
+      label: reference.label.trim(),
+      url: reference.url.trim(),
+      note: reference.note?.trim() || null,
+    }))
+    .filter((reference) => reference.label.length > 0 && reference.url.length > 0)
+
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function buildWalletError(options: {
@@ -256,6 +270,7 @@ export function useCreateOrder(checkout: CheckoutContext) {
             agentServiceId: checkout.backendServiceId,
             quantity: 1,
             customerNote: normalizeText(input.customerNote),
+            customerReferences: normalizeReferences(input.customerReferences),
             paymentReference,
             expectedPayment: {
               chainId: agentCommerceConfig.appchain.interwovenChainId,

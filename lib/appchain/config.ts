@@ -33,6 +33,11 @@ export type AgentCommerceConfigStatus = {
 export type FrontendSafeAppchainConfig = {
   appName: string
   apiBaseUrl: string
+  bridge: {
+    defaultSourceChainId: string
+    defaultSourceDenom: string
+    defaultSourceLabel: string
+  }
   appchain: {
     displayName: string
     chainId: number
@@ -100,6 +105,11 @@ const appchainApiEndpoints = {
 export const agentCommerceConfig: FrontendSafeAppchainConfig = {
   appName: "AgentCommerce",
   apiBaseUrl: env.apiBaseUrl,
+  bridge: {
+    defaultSourceChainId: "initiation-2",
+    defaultSourceDenom: "uinit",
+    defaultSourceLabel: "Initia Testnet",
+  },
   appchain: {
     displayName: "AgentCommerce Local Rollup",
     chainId: env.appchainEvmChainId,
