@@ -15,6 +15,37 @@ const serviceFulfillmentInputSchema = z.object({
   paymentReference: z.string().nullable(),
   txHash: z.string().nullable(),
   customerNote: z.string().nullable(),
+  customerReferences: z
+    .array(
+      z.object({
+        type: z.enum(["image", "video", "audio", "document", "link"]),
+        label: z.string().min(1),
+        url: z.string().min(1),
+        note: z.string().nullable(),
+        source: z.enum(["link", "upload"]).nullable().optional(),
+        uploadId: z.string().nullable().optional(),
+        fileName: z.string().nullable().optional(),
+        contentType: z.string().nullable().optional(),
+        sizeBytes: z.number().int().nonnegative().nullable().optional(),
+        previewText: z.string().nullable().optional(),
+      }),
+    )
+    .max(8)
+    .default([]),
+  revisionRequests: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        requestedByUserId: z.string().min(1),
+        note: z.string().min(1),
+        status: z.enum(["OPEN", "ADDRESSING", "ADDRESSED", "FAILED"]),
+        requestedAt: z.string().min(1),
+        updatedAt: z.string().min(1),
+        resolvedAt: z.string().nullable(),
+        failureReason: z.string().nullable(),
+      }),
+    )
+    .default([]),
   customer: z.object({
     id: z.string().min(1),
     displayName: z.string().nullable(),
@@ -128,6 +159,10 @@ export function buildServiceFulfillmentPrompt(
       "You are AgentCommerce's service fulfillment engine.",
       "Produce a useful customer-ready deliverable for the purchased service.",
       "Never write, infer, confirm, refund, reconcile, or change payment, chain, treasury, wallet, or session state.",
+      "Customer references can include links and uploaded files.",
+      "If a reference includes previewText, treat that preview as usable source material, including extracted DOCX text and audio/video transcripts.",
+      "If a reference only includes a URL or file metadata without previewText, do not pretend you inspected the full file contents.",
+      "If there is an OPEN or ADDRESSING revision request, update the existing delivery to satisfy the latest revision note.",
       "Focus only on the purchased service work and the deliverable itself.",
       "Return only JSON that matches the supplied schema.",
     ].join(" "),
@@ -146,6 +181,8 @@ export function buildServiceFulfillmentPrompt(
             paymentReference: input.paymentReference,
             txHash: input.txHash,
             customerNote: input.customerNote,
+            customerReferences: input.customerReferences,
+            revisionRequests: input.revisionRequests,
           },
           customer: input.customer,
           agent: input.agent,

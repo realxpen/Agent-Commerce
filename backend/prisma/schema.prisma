@@ -304,6 +304,7 @@ model Order {
   denom                String
   customerNote         String?
   customerReferences   Json?
+  revisionRequests     Json?
   deliveryUrl          String?
   deliveryText         String?
   paymentReference     String?

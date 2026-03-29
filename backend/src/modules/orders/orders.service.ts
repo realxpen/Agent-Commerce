@@ -4,11 +4,14 @@ import {
   DeliveryStatus,
   OrderPaymentStatus,
   OrderStatus,
+  PaymentConfirmationStatus,
+  PaymentStatus,
   Prisma,
   type PrismaClient,
 } from "@prisma/client";
 
 import type { AppQueues } from "../../queues/index.js";
+import { recomputeDailyTreasurySnapshot } from "../contract-events/contract-events.repository.js";
 import { maybeTriggerTaskProcessingForOrder } from "../ai-tasks/task.service.js";
 import type {
   AttachDeliverableBody,
@@ -26,10 +29,27 @@ type CreateOrderInput = CreateOrderBody & {
 };
 
 type OrderReferenceRecord = {
-  type: "image" | "video" | "document" | "link";
+  type: "image" | "video" | "audio" | "document" | "link";
   label: string;
   url: string;
   note: string | null;
+  source: "link" | "upload";
+  uploadId: string | null;
+  fileName: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  previewText: string | null;
+};
+
+type OrderRevisionRequestRecord = {
+  id: string;
+  requestedByUserId: string;
+  note: string;
+  status: "OPEN" | "ADDRESSING" | "ADDRESSED" | "FAILED";
+  requestedAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  failureReason: string | null;
 };
 
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
@@ -50,7 +70,7 @@ const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED, OrderStatus.FAILED],
   [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELLED]: [],
-  [OrderStatus.FAILED]: [],
+  [OrderStatus.FAILED]: [OrderStatus.IN_PROGRESS, OrderStatus.DELIVERED],
 };
 
 function normalizeOptionalString(value: string | null | undefined) {
@@ -86,6 +106,15 @@ function normalizeOrderReferences(
     label: reference.label.trim(),
     url: reference.url.trim(),
     note: normalizeOptionalString(reference.note) ?? null,
+    source: reference.source === "upload" ? "upload" : "link",
+    uploadId: normalizeOptionalString(reference.uploadId) ?? null,
+    fileName: normalizeOptionalString(reference.fileName) ?? null,
+    contentType: normalizeOptionalString(reference.contentType) ?? null,
+    sizeBytes:
+      typeof reference.sizeBytes === "number" && Number.isFinite(reference.sizeBytes)
+        ? Math.max(0, Math.trunc(reference.sizeBytes))
+        : null,
+    previewText: normalizeOptionalString(reference.previewText) ?? null,
   })) satisfies Prisma.InputJsonArray;
 }
 
@@ -104,6 +133,7 @@ function toOrderReferenceList(
     const type =
       entry.type === "image" ||
       entry.type === "video" ||
+      entry.type === "audio" ||
       entry.type === "document" ||
       entry.type === "link"
         ? entry.type
@@ -111,6 +141,17 @@ function toOrderReferenceList(
     const label = typeof entry.label === "string" ? entry.label : null;
     const url = typeof entry.url === "string" ? entry.url : null;
     const note = typeof entry.note === "string" ? entry.note : null;
+    const source = entry.source === "upload" ? "upload" : "link";
+    const uploadId = typeof entry.uploadId === "string" ? entry.uploadId : null;
+    const fileName = typeof entry.fileName === "string" ? entry.fileName : null;
+    const contentType =
+      typeof entry.contentType === "string" ? entry.contentType : null;
+    const sizeBytes =
+      typeof entry.sizeBytes === "number" && Number.isFinite(entry.sizeBytes)
+        ? Math.max(0, Math.trunc(entry.sizeBytes))
+        : null;
+    const previewText =
+      typeof entry.previewText === "string" ? entry.previewText : null;
 
     if (!type || !label || !url) {
       return [];
@@ -122,7 +163,62 @@ function toOrderReferenceList(
         label,
         url,
         note,
+        source,
+        uploadId,
+        fileName,
+        contentType,
+        sizeBytes,
+        previewText,
       } satisfies OrderReferenceRecord,
+    ];
+  });
+}
+
+function toOrderRevisionRequestList(
+  value: Prisma.JsonValue | null | undefined,
+): OrderRevisionRequestRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const id = typeof entry.id === "string" ? entry.id : null;
+    const requestedByUserId =
+      typeof entry.requestedByUserId === "string" ? entry.requestedByUserId : null;
+    const note = typeof entry.note === "string" ? entry.note : null;
+    const status =
+      entry.status === "OPEN" ||
+      entry.status === "ADDRESSING" ||
+      entry.status === "ADDRESSED" ||
+      entry.status === "FAILED"
+        ? entry.status
+        : null;
+    const requestedAt =
+      typeof entry.requestedAt === "string" ? entry.requestedAt : null;
+    const updatedAt = typeof entry.updatedAt === "string" ? entry.updatedAt : requestedAt;
+    const resolvedAt = typeof entry.resolvedAt === "string" ? entry.resolvedAt : null;
+    const failureReason =
+      typeof entry.failureReason === "string" ? entry.failureReason : null;
+
+    if (!id || !requestedByUserId || !note || !status || !requestedAt || !updatedAt) {
+      return [];
+    }
+
+    return [
+      {
+        id,
+        requestedByUserId,
+        note,
+        status,
+        requestedAt,
+        updatedAt,
+        resolvedAt,
+        failureReason,
+      } satisfies OrderRevisionRequestRecord,
     ];
   });
 }
@@ -162,6 +258,7 @@ function toOrderDto(order: OrderRecord): OrderDto {
     },
     customerNote: order.customerNote,
     customerReferences: toOrderReferenceList(order.customerReferences),
+    revisionRequests: toOrderRevisionRequestList(order.revisionRequests),
     payment: {
       reference: order.paymentReference,
       txHash: order.txHash,
@@ -388,6 +485,30 @@ export async function createOrder(db: PrismaClient, input: CreateOrderInput): Pr
     const txHash = normalizeOptionalString(input.txHash) ?? null;
     const customerNote = normalizeOptionalString(input.customerNote) ?? null;
     const customerReferences = normalizeOrderReferences(input.customerReferences) ?? null;
+
+    if (paymentReference) {
+      const existingOrder = await tx.order.findFirst({
+        where: {
+          customerId: input.customerId,
+          agentServiceId: service.id,
+          paymentReference,
+        },
+        orderBy: [
+          {
+            createdAt: "desc",
+          },
+          {
+            id: "desc",
+          },
+        ],
+        select: orderDtoSelect,
+      });
+
+      if (existingOrder) {
+        return existingOrder;
+      }
+    }
+
     const expectedPaymentInfo: Prisma.InputJsonObject | undefined = input.expectedPayment
       ? {
           chainId: input.expectedPayment.chainId,
@@ -454,6 +575,78 @@ export async function createOrder(db: PrismaClient, input: CreateOrderInput): Pr
       },
       select: orderDtoSelect,
     });
+  });
+
+  return toOrderDto(order);
+}
+
+export async function requestOrderRevision(
+  db: PrismaClient,
+  queues: AppQueues,
+  orderId: string,
+  input: {
+    customerId: string;
+    note: string;
+  },
+): Promise<OrderDto> {
+  const order = await db.$transaction(async (tx) => {
+    const existingOrder = await findOrderOrThrow(tx, orderId);
+
+    if (existingOrder.customerId !== input.customerId) {
+      throw createHttpError(403, "Only the customer can request a revision");
+    }
+
+    if (existingOrder.status !== OrderStatus.DELIVERED) {
+      throw createHttpError(
+        409,
+        "Revisions can only be requested after a delivery is available",
+      );
+    }
+
+    const existingRevisions = toOrderRevisionRequestList(existingOrder.revisionRequests);
+    const hasActiveRevision = existingRevisions.some(
+      (revision) => revision.status === "OPEN" || revision.status === "ADDRESSING",
+    );
+
+    if (hasActiveRevision) {
+      throw createHttpError(
+        409,
+        "A revision request is already in progress for this order",
+      );
+    }
+
+    const now = new Date().toISOString();
+    const nextRevisions = [
+      ...existingRevisions,
+      {
+        id: crypto.randomUUID().replace(/-/g, ""),
+        requestedByUserId: input.customerId,
+        note: input.note.trim(),
+        status: "OPEN",
+        requestedAt: now,
+        updatedAt: now,
+        resolvedAt: null,
+        failureReason: null,
+      } satisfies OrderRevisionRequestRecord,
+    ] satisfies Prisma.InputJsonArray;
+
+    const updatedOrder = await tx.order.update({
+      where: {
+        id: orderId,
+      },
+      data: {
+        revisionRequests: nextRevisions,
+      },
+      select: orderDtoSelect,
+    });
+
+    return updatedOrder;
+  });
+
+  await maybeTriggerTaskProcessingForOrder(db, queues, {
+    orderId,
+    source: "revision-request",
+    force: true,
   });
 
   return toOrderDto(order);
@@ -645,25 +838,51 @@ export async function markOrderCompleted(
 ): Promise<OrderDto> {
   const updatedOrder = await db.$transaction(async (tx) => {
     const existingOrder = await findOrderOrThrow(tx, orderId);
+    const completedAt = existingOrder.completedAt
+      ? new Date(existingOrder.completedAt)
+      : new Date();
 
-    if (existingOrder.status === OrderStatus.COMPLETED) {
-      return existingOrder;
-    }
-
-    if (existingOrder.status !== OrderStatus.DELIVERED) {
+    if (
+      existingOrder.status !== OrderStatus.DELIVERED &&
+      existingOrder.status !== OrderStatus.COMPLETED
+    ) {
       throw createHttpError(409, "Order must be delivered before it can be completed");
     }
 
-    const updated = await tx.order.update({
+    const updated =
+      existingOrder.status === OrderStatus.COMPLETED
+        ? existingOrder
+        : await tx.order.update({
+            where: {
+              id: orderId,
+            },
+            data: {
+              status: OrderStatus.COMPLETED,
+              deliveryStatus: DeliveryStatus.DELIVERED,
+              completedAt,
+            },
+            select: orderDtoSelect,
+          });
+
+    await tx.payment.updateMany({
       where: {
-        id: orderId,
+        orderId,
+        status: PaymentStatus.CONFIRMED,
+        confirmationStatus: {
+          not: PaymentConfirmationStatus.FINALIZED,
+        },
       },
       data: {
-        status: OrderStatus.COMPLETED,
-        deliveryStatus: DeliveryStatus.DELIVERED,
-        completedAt: existingOrder.completedAt ?? new Date(),
+        confirmationStatus: PaymentConfirmationStatus.FINALIZED,
+        finalizedAt: completedAt,
       },
-      select: orderDtoSelect,
+    });
+
+    await recomputeDailyTreasurySnapshot(tx, {
+      agentId: existingOrder.agent.id,
+      denom: existingOrder.denom,
+      currency: existingOrder.currency,
+      referenceTime: completedAt,
     });
 
     return updated;

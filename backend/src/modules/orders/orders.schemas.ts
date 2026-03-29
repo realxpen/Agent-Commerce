@@ -22,10 +22,16 @@ const expectedPaymentSchema = z.object({
 });
 
 const orderReferenceSchema = z.object({
-  type: z.enum(["image", "video", "document", "link"]),
+  type: z.enum(["image", "video", "audio", "document", "link"]),
   label: trimmedString.min(1).max(120),
   url: z.string().trim().url().max(2048),
   note: trimmedString.min(1).max(1000).optional(),
+  source: z.enum(["link", "upload"]).optional(),
+  uploadId: trimmedString.min(8).max(64).optional(),
+  fileName: trimmedString.min(1).max(255).optional(),
+  contentType: trimmedString.min(1).max(255).optional(),
+  sizeBytes: z.coerce.number().int().min(0).max(25 * 1024 * 1024).optional(),
+  previewText: trimmedString.min(1).max(12000).optional(),
 });
 
 export const orderParamsSchema = z.object({
@@ -84,8 +90,13 @@ export const attachDeliverableBodySchema = z
     },
   );
 
+export const requestOrderRevisionBodySchema = z.object({
+  note: trimmedString.min(1).max(4000),
+});
+
 export type CreateOrderBody = z.infer<typeof createOrderBodySchema>;
 export type ListOrdersForUserQuery = z.infer<typeof listOrdersForUserQuerySchema>;
 export type ListOrdersForOwnerQuery = z.infer<typeof listOrdersForOwnerQuerySchema>;
 export type UpdateOrderStatusBody = z.infer<typeof updateOrderStatusBodySchema>;
 export type AttachDeliverableBody = z.infer<typeof attachDeliverableBodySchema>;
+export type RequestOrderRevisionBody = z.infer<typeof requestOrderRevisionBodySchema>;

@@ -77,6 +77,7 @@ export async function findOrderForPaymentCreate(
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
+      finalPaidAmount: true,
       currency: true,
       denom: true,
       agent: {
@@ -105,6 +106,7 @@ export async function findOrderByPaymentReference(
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
+      finalPaidAmount: true,
       denom: true,
       currency: true,
       agent: {

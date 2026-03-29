@@ -6,13 +6,36 @@ export type JsonValue =
   | { [key: string]: JsonValue }
   | JsonValue[]
 
-export type OrderReferenceType = "image" | "video" | "document" | "link"
+export type OrderReferenceType = "image" | "video" | "audio" | "document" | "link"
+export type OrderReferenceSource = "link" | "upload"
+export type OrderRevisionRequestStatus =
+  | "OPEN"
+  | "ADDRESSING"
+  | "ADDRESSED"
+  | "FAILED"
 
 export type OrderReference = {
   type: OrderReferenceType
   label: string
   url: string
   note: string | null
+  source?: OrderReferenceSource
+  uploadId?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  sizeBytes?: number | null
+  previewText?: string | null
+}
+
+export type OrderRevisionRequest = {
+  id: string
+  requestedByUserId: string
+  note: string
+  status: OrderRevisionRequestStatus
+  requestedAt: string
+  updatedAt: string
+  resolvedAt: string | null
+  failureReason: string | null
 }
 
 export type AgentStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED"
@@ -161,6 +184,7 @@ export type OrderDto = {
   }
   customerNote: string | null
   customerReferences: OrderReference[]
+  revisionRequests: OrderRevisionRequest[]
   payment: {
     reference: string | null
     txHash: string | null
@@ -363,6 +387,19 @@ export type ListServicesParams = {
   pageSize?: number
 }
 
+export type ListCustomerOrdersParams = {
+  status?: OrderStatus
+  page?: number
+  pageSize?: number
+}
+
+export type ListOwnerOrdersParams = {
+  status?: OrderStatus
+  agentId?: string
+  page?: number
+  pageSize?: number
+}
+
 export type CreateOrderRecordInput = {
   agentServiceId: string
   quantity?: number
@@ -382,9 +419,51 @@ export type CreateOrderRecordInput = {
   }
 }
 
+export type CreatePaymentRecordInput = {
+  orderId: string
+  chainId: string
+  paymentReference?: string
+  txHash?: string
+  amount: string
+  feeAmount?: string
+  currency?: string
+  denom: string
+  sender: string
+  recipient: string
+  status?: PaymentStatus
+  failureReason?: string
+}
+
+export type UploadReferenceFileInput = {
+  fileName: string
+  contentType?: string | null
+  dataBase64: string
+}
+
+export type UploadedReferenceFileDto = {
+  uploadId: string
+  fileName: string
+  contentType: string | null
+  sizeBytes: number
+  referenceType: Exclude<OrderReferenceType, "link">
+  url: string
+  previewText: string | null
+}
+
 export type AttachOrderDeliverableInput = {
   deliveryUrl?: string
   deliveryText?: string
+}
+
+export type RequestOrderRevisionInput = {
+  note: string
+}
+
+export type UpdateOrderStatusInput = {
+  status: OrderStatus
+  finalPaidAmount?: string
+  paymentReference?: string
+  txHash?: string
 }
 
 export type ListDashboardStatsParams = {

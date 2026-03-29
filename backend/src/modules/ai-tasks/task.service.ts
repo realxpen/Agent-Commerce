@@ -26,6 +26,7 @@ type TriggerSource =
   | "order-status-update"
   | "payment-create"
   | "contract-event"
+  | "revision-request"
   | "manual-test"
   | "retry";
 
@@ -70,6 +71,7 @@ function toTaskRunDto(taskRun: TaskRunRecord): TaskRunDto {
           deliveryStatus: taskRun.order.deliveryStatus,
           serviceTitle: taskRun.order.serviceTitleSnapshot,
           customerNote: taskRun.order.customerNote,
+          revisionRequests: taskRun.order.revisionRequests,
           paymentReference: taskRun.order.paymentReference,
           txHash: taskRun.order.txHash,
           quotedPriceAmount: taskRun.order.quotedPriceAmount.toString(),
@@ -127,6 +129,12 @@ function buildPromptInput(order: Awaited<ReturnType<typeof findOrderForTaskOrThr
     paymentReference: order.paymentReference,
     txHash: order.txHash,
     customerNote: order.customerNote,
+    customerReferences: Array.isArray(order.customerReferences)
+      ? order.customerReferences
+      : [],
+    revisionRequests: Array.isArray(order.revisionRequests)
+      ? order.revisionRequests
+      : [],
     customer: {
       id: order.customer.id,
       displayName: order.customer.displayName,
@@ -216,6 +224,18 @@ export async function triggerTaskProcessingForOrder(
 
     const latestRun = await findLatestTaskRunForTask(tx, agentTask.id);
     if (latestRun?.status === TaskRunStatus.SUCCEEDED && !input.force) {
+      return {
+        taskRun: latestRun,
+        queued: false,
+        reusedExistingRun: true,
+      };
+    }
+
+    if (
+      latestRun?.status === TaskRunStatus.FAILED &&
+      latestRun.attemptNumber >= agentTask.maxRetries &&
+      !input.force
+    ) {
       return {
         taskRun: latestRun,
         queued: false,

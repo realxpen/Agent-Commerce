@@ -28,6 +28,9 @@ export default function MarketplacePage() {
               showSessionStatus={false}
             />
             <Button asChild variant="ghost" size="sm">
+              <Link href="/orders">My Orders</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
               <Link href="/dashboard">Dashboard</Link>
             </Button>
             <Button asChild size="sm">

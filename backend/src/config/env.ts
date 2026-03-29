@@ -49,6 +49,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   OPENAI_MODEL: z.string().min(1).default("gpt-4.1-mini"),
+  OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
+  UPLOAD_STORAGE_DIR: z.string().min(1).default("storage/uploads"),
+  UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
 });
 
 const parsed = envSchema.safeParse(process.env);

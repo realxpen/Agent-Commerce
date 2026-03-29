@@ -13,6 +13,7 @@ import {
   listOrdersForAgentOwner,
   listOrdersForUser,
   markOrderCompleted,
+  requestOrderRevision,
   updateOrderStatus,
 } from "./orders.service.js";
 import {
@@ -23,6 +24,7 @@ import {
   listOrdersForUserQuerySchema,
   orderParamsSchema,
   ownerOrdersParamsSchema,
+  requestOrderRevisionBodySchema,
   updateOrderStatusBodySchema,
 } from "./orders.schemas.js";
 
@@ -123,6 +125,26 @@ export async function orderRoutes(app: FastifyInstance) {
       await assertUserCanManageOrder(app.prisma, request.auth!.userId, orderId);
       const body = attachDeliverableBodySchema.parse(request.body ?? {});
       const order = await attachDeliverable(app.prisma, orderId, body);
+
+      return {
+        data: order,
+      };
+    },
+  );
+
+  app.post(
+    "/:orderId/revision-request",
+    {
+      preHandler: app.authenticate,
+    },
+    async (request) => {
+      const { orderId } = orderParamsSchema.parse(request.params ?? {});
+      await assertUserCanCompleteOrder(app.prisma, request.auth!.userId, orderId);
+      const body = requestOrderRevisionBodySchema.parse(request.body ?? {});
+      const order = await requestOrderRevision(app.prisma, app.queues, orderId, {
+        customerId: request.auth!.userId,
+        note: body.note,
+      });
 
       return {
         data: order,

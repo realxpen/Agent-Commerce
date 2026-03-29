@@ -8,7 +8,14 @@ import { useBackendAuth } from "@/hooks/auth"
 import { useServiceEscrowActions } from "@/hooks/contracts/useServiceEscrowActions"
 import { useSession } from "@/components/providers/SessionProvider"
 import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
-import type { DeliveryStatus, OrderDto, OrderPaymentStatus, OrderStatus } from "@/lib/api/types"
+import { buildPaymentRecoveryInput } from "@/lib/orders/payment-recovery"
+import type {
+  DeliveryStatus,
+  OrderDto,
+  OrderPaymentStatus,
+  OrderRevisionRequest,
+  OrderStatus,
+} from "@/lib/api/types"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 
 type SearchParamReader = {
@@ -60,10 +67,25 @@ function isValidViewerRole(value: string | null): value is OrderViewerRole {
   return value === "customer" || value === "agent_owner"
 }
 
+function isProviderQuotaFailureMessage(value: string | null | undefined) {
+  if (!value) {
+    return false
+  }
+
+  const normalized = value.toLowerCase()
+  return (
+    normalized.includes("no remaining quota") ||
+    normalized.includes("insufficient_quota") ||
+    normalized.includes("exceeded your current quota") ||
+    normalized.includes("openai account")
+  )
+}
+
 function buildCustomerNextAction(input: {
   order: OrderDto | null
   onchainOrderId: bigint | null
   pendingOnly: boolean
+  activeRevision: OrderRevisionRequest | null
 }): OrderNextAction {
   if (!input.order) {
     return {
@@ -80,6 +102,21 @@ function buildCustomerNextAction(input: {
     input.order.status === "CANCELLED" ||
     input.order.status === "FAILED"
   ) {
+    if (
+      input.order.status === "FAILED" &&
+      input.order.paymentStatus === "PAID" &&
+      isProviderQuotaFailureMessage(input.order.delivery.text)
+    ) {
+      return {
+        kind: "cancelled",
+        title: "AI fulfillment is waiting on provider billing",
+        description:
+          "Your payment is still secured, but the automated agent cannot continue until the agent owner restores AI billing or resumes the order manually.",
+        helperText:
+          "You can keep this order open. The next delivery will appear here once the owner resolves the AI provider issue.",
+      }
+    }
+
     return {
       kind: "cancelled",
       title: "This order needs attention",
@@ -104,13 +141,24 @@ function buildCustomerNextAction(input: {
   if (input.order.status === "PAID" || input.order.status === "IN_PROGRESS") {
     return {
       kind: "wait_delivery",
-      title: "The agent is working on your order",
+      title: input.activeRevision ? "Your revision is being handled" : "The agent is working on your order",
       description:
-        "Delivery details are not attached to this order yet.",
+        input.activeRevision
+          ? "AgentCommerce is generating an updated delivery from your latest revision request."
+          : "Delivery details are not attached to this order yet.",
     }
   }
 
   if (input.order.status === "DELIVERED") {
+    if (input.activeRevision) {
+      return {
+        kind: "wait_delivery",
+        title: "Updated delivery in progress",
+        description:
+          "Your latest revision request is being worked on. The delivery preview will refresh when the new version is ready.",
+      }
+    }
+
     if (input.onchainOrderId === null) {
       return {
         kind: "syncing",
@@ -151,6 +199,7 @@ function buildCustomerNextAction(input: {
 function buildAgentOwnerNextAction(input: {
   order: OrderDto | null
   onchainOrderId: bigint | null
+  activeRevision: OrderRevisionRequest | null
 }): OrderNextAction {
   if (!input.order) {
     return {
@@ -163,13 +212,58 @@ function buildAgentOwnerNextAction(input: {
 
   if (
     input.order.status === "CANCELLED" ||
-    input.order.status === "FAILED"
+    (input.order.status === "FAILED" &&
+      input.order.paymentStatus !== "PAID")
   ) {
     return {
       kind: "cancelled",
       title: "This order needs manual review",
       description:
         "The order did not reach completion. Review payment and delivery details before proceeding.",
+    }
+  }
+
+  if (input.order.status === "FAILED" && input.order.paymentStatus === "PAID") {
+    if (isProviderQuotaFailureMessage(input.order.delivery.text)) {
+      if (input.onchainOrderId === null) {
+        return {
+          kind: "syncing",
+          title: "AI provider quota is exhausted",
+          description:
+            "Payment is secured, but this page still needs the indexed on-chain order reference before manual fulfillment can resume.",
+          helperText:
+            "Restore OpenAI billing or switch the fulfillment provider, then come back here to continue the order manually.",
+        }
+      }
+
+      return {
+        kind: "mark_in_progress",
+        title: "Restore AI billing or fulfill manually",
+        description:
+          "The customer payment is secured, but automated fulfillment stopped because the configured OpenAI account has no remaining quota.",
+        ctaLabel: "Resume Fulfillment",
+        helperText:
+          "Top up the OpenAI account or swap providers, then resume this order. You can also complete the delivery manually right now.",
+      }
+    }
+
+    if (input.onchainOrderId === null) {
+      return {
+        kind: "syncing",
+        title: "Automated fulfillment failed",
+        description:
+          "Payment is secured, but this page still needs the indexed on-chain order reference before manual fulfillment can resume.",
+      }
+    }
+
+    return {
+      kind: "mark_in_progress",
+      title: "Resume fulfillment manually",
+      description:
+        "The automated agent run failed, but the customer payment is still secured. Resume this order manually to continue the delivery flow.",
+      ctaLabel: "Resume Fulfillment",
+      helperText:
+        "Use this when AI execution is unavailable or needs human takeover.",
     }
   }
 
@@ -204,6 +298,16 @@ function buildAgentOwnerNextAction(input: {
       ctaLabel: "Mark In Progress",
       helperText:
         "This is the owner-side handoff from paid to active fulfillment.",
+    }
+  }
+
+  if (input.activeRevision) {
+    return {
+      kind: "wait_delivery",
+      title: "A customer revision is being processed",
+      description:
+        "The latest customer revision request has been queued for fulfillment. Review the updated delivery once it lands.",
+      helperText: `Latest revision request: ${input.activeRevision.note}`,
     }
   }
 
@@ -300,15 +404,34 @@ function deriveViewerRole(options: {
     return null
   }
 
-  if (options.order.customerId === options.authenticatedUserId) {
+  const isCustomer = options.order.customerId === options.authenticatedUserId
+  const isAgentOwner = options.order.agent.ownerId === options.authenticatedUserId
+
+  if (isCustomer && isAgentOwner && options.fallbackRole) {
+    return options.fallbackRole
+  }
+
+  if (isCustomer) {
     return "customer"
   }
 
-  if (options.order.agent.ownerId === options.authenticatedUserId) {
+  if (isAgentOwner) {
     return "agent_owner"
   }
 
   return null
+}
+
+function getActiveRevisionRequest(order: OrderDto | null) {
+  if (!order) {
+    return null
+  }
+
+  const active = [...order.revisionRequests].reverse().find((revision) =>
+    revision.status === "OPEN" || revision.status === "ADDRESSING",
+  )
+
+  return active ?? null
 }
 
 export function useOrderDetail(options: {
@@ -330,14 +453,17 @@ export function useOrderDetail(options: {
   const fallbackAgentName = searchParams.get("agentName")
   const onchainOrderId = parseBigIntCandidate(searchParams.get("onchainOrderId"))
 
-  const fallbackViewerRole =
-    isPendingOnly && isValidViewerRole(searchParams.get("role"))
-      ? (searchParams.get("role") as OrderViewerRole)
-      : isPendingOnly
-        ? "customer"
-        : null
+  const fallbackViewerRole = isValidViewerRole(searchParams.get("role"))
+    ? (searchParams.get("role") as OrderViewerRole)
+    : isPendingOnly
+      ? "customer"
+      : null
   const [deliveryUrlInput, setDeliveryUrlInput] = useState("")
   const [deliveryTextInput, setDeliveryTextInput] = useState("")
+  const [revisionNoteInput, setRevisionNoteInput] = useState("")
+  const [isRequestingRevision, setIsRequestingRevision] = useState(false)
+  const [revisionRequestError, setRevisionRequestError] = useState<string | null>(null)
+  const [hasAttemptedPaymentRecovery, setHasAttemptedPaymentRecovery] = useState(false)
   const [actionNotice, setActionNotice] = useState<string | null>(null)
   const [actionWarning, setActionWarning] = useState<string | null>(null)
 
@@ -370,6 +496,46 @@ export function useOrderDetail(options: {
   const tasks = tasksQuery.data?.data ?? []
   const primaryTransaction = transactions[0] ?? null
 
+  const refetchAll = useCallback(async () => {
+    if (isPendingOnly || orderId.startsWith("pending-")) {
+      return
+    }
+
+    await Promise.all([
+      orderQuery.refetch(),
+      transactionsQuery.refetch(),
+      tasksQuery.refetch(),
+    ])
+  }, [isPendingOnly, orderId, orderQuery, tasksQuery, transactionsQuery])
+
+  const invalidateOrderViews = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: apiQueryKeys.order(orderId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: apiQueryKeys.transactions({ orderId, page: 1, pageSize: 4 }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: apiQueryKeys.tasks({ orderId, page: 1, pageSize: 4 }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["api", "orders"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["api", "dashboard-stats"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["api", "transactions"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["api", "tasks"],
+      }),
+    ])
+
+    await refetchAll()
+  }, [orderId, queryClient, refetchAll])
+
   useEffect(() => {
     if (!order) {
       return
@@ -384,6 +550,57 @@ export function useOrderDetail(options: {
     }
   }, [deliveryTextInput, deliveryUrlInput, order])
 
+  useEffect(() => {
+    if (
+      hasAttemptedPaymentRecovery ||
+      !order ||
+      !auth.isAuthenticated ||
+      isPendingOnly ||
+      orderId.startsWith("pending-") ||
+      transactionsQuery.isLoading ||
+      transactions.length > 0 ||
+      order.paymentStatus === "PAID"
+    ) {
+      return
+    }
+
+    const paymentRecoveryInput = buildPaymentRecoveryInput({
+      order,
+      fallbackTxHash,
+    })
+
+    if (!paymentRecoveryInput) {
+      return
+    }
+
+    setHasAttemptedPaymentRecovery(true)
+
+    void (async () => {
+      try {
+        await agentCommerceApi.createPaymentRecord(paymentRecoveryInput)
+
+        setActionNotice(
+          "AgentCommerce recovered the missing backend payment record for this order.",
+        )
+        await invalidateOrderViews()
+      } catch (error) {
+        setActionWarning(
+          `${getApiErrorMessage(error)} The order is still visible here, but payment tracking may need another refresh.`,
+        )
+      }
+    })()
+  }, [
+    auth.isAuthenticated,
+    fallbackTxHash,
+    hasAttemptedPaymentRecovery,
+    invalidateOrderViews,
+    isPendingOnly,
+    order,
+    orderId,
+    transactions,
+    transactionsQuery.isLoading,
+  ])
+
   const txHash = order?.payment.txHash ?? primaryTransaction?.txHash ?? fallbackTxHash
   const amountLabel = order
     ? `${order.pricing.finalPaidAmount ?? order.pricing.quotedPrice} ${order.pricing.currency ?? order.pricing.denom}`.trim()
@@ -396,6 +613,7 @@ export function useOrderDetail(options: {
   const lifecycleStatus = order?.status ?? ("PENDING" as OrderStatus)
   const deliveryStatus = order?.deliveryStatus ?? ("PENDING" as DeliveryStatus)
   const authenticatedUserId = auth.currentSession?.user.id ?? null
+  const activeRevisionRequest = getActiveRevisionRequest(order)
 
   const viewerRole = useMemo<DerivedOrderViewerRole>(
     () =>
@@ -420,50 +638,24 @@ export function useOrderDetail(options: {
 
   const nextAction = useMemo(() => {
     return viewerRole === "customer"
-      ? buildCustomerNextAction({
+        ? buildCustomerNextAction({
           order,
           onchainOrderId,
           pendingOnly: isPendingOnly,
+          activeRevision: activeRevisionRequest,
         })
-      : viewerRole === "agent_owner"
+        : viewerRole === "agent_owner"
         ? buildAgentOwnerNextAction({
           order,
           onchainOrderId,
+          activeRevision: activeRevisionRequest,
         })
         : buildIdentityRequiredNextAction({
             order,
             pendingOnly: isPendingOnly,
             isAuthenticated: auth.isAuthenticated,
           })
-  }, [auth.isAuthenticated, isPendingOnly, onchainOrderId, order, viewerRole])
-
-  const refetchAll = useCallback(async () => {
-    if (isPendingOnly || orderId.startsWith("pending-")) {
-      return
-    }
-
-    await Promise.all([
-      orderQuery.refetch(),
-      transactionsQuery.refetch(),
-      tasksQuery.refetch(),
-    ])
-  }, [isPendingOnly, orderId, orderQuery, tasksQuery, transactionsQuery])
-
-  const invalidateOrderViews = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: apiQueryKeys.order(orderId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: apiQueryKeys.transactions({ orderId, page: 1, pageSize: 4 }),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: apiQueryKeys.tasks({ orderId, page: 1, pageSize: 4 }),
-      }),
-    ])
-
-    await refetchAll()
-  }, [orderId, queryClient, refetchAll])
+  }, [activeRevisionRequest, auth.isAuthenticated, isPendingOnly, onchainOrderId, order, viewerRole])
 
   const markInProgress = useCallback(async () => {
     if (onchainOrderId === null) {
@@ -481,12 +673,24 @@ export function useOrderDetail(options: {
     })
 
     if (result.success) {
+      if (order) {
+        try {
+          await agentCommerceApi.updateOrderStatus(order.id, {
+            status: "IN_PROGRESS",
+          })
+        } catch (error) {
+          setActionWarning(
+            `${getApiErrorMessage(error)} The on-chain status changed, but the backend order view may need another refresh.`,
+          )
+        }
+      }
+
       session.markSessionUsed("dashboard")
       await invalidateOrderViews()
     }
 
     return result
-  }, [escrow, invalidateOrderViews, onchainOrderId, session])
+  }, [escrow, invalidateOrderViews, onchainOrderId, order, session])
 
   const markDelivered = useCallback(async () => {
     if (onchainOrderId === null) {
@@ -508,25 +712,25 @@ export function useOrderDetail(options: {
     setActionNotice(null)
     setActionWarning(null)
 
-    if (order) {
-      try {
-        await agentCommerceApi.attachOrderDeliverable(order.id, {
-          deliveryUrl: normalizedUrl,
-          deliveryText: normalizedText,
-        })
-      } catch (error) {
-        setActionWarning(
-          `${getApiErrorMessage(error)} The on-chain delivery step can still continue, but the backend preview may appear a little later.`,
-        )
-      }
-    }
-
     const result = await escrow.markDelivered({
       orderId: onchainOrderId,
       deliveryRef,
     })
 
     if (result.success) {
+      if (order) {
+        try {
+          await agentCommerceApi.attachOrderDeliverable(order.id, {
+            deliveryUrl: normalizedUrl,
+            deliveryText: normalizedText,
+          })
+        } catch (error) {
+          setActionWarning(
+            `${getApiErrorMessage(error)} The order was marked delivered on-chain, but the backend delivery preview may need another refresh.`,
+          )
+        }
+      }
+
       session.markSessionUsed("dashboard")
       await invalidateOrderViews()
     }
@@ -558,12 +762,62 @@ export function useOrderDetail(options: {
     })
 
     if (result.success) {
+      if (order) {
+        try {
+          await agentCommerceApi.markOrderCompleted(order.id)
+        } catch (error) {
+          setActionWarning(
+            `${getApiErrorMessage(error)} The on-chain completion succeeded, but the backend settlement state may need another refresh.`,
+          )
+        }
+      }
+
       session.markSessionUsed("checkout")
       await invalidateOrderViews()
     }
 
     return result
-  }, [escrow, invalidateOrderViews, onchainOrderId, session])
+  }, [escrow, invalidateOrderViews, onchainOrderId, order, session])
+
+  const requestRevision = useCallback(async () => {
+    if (!order) {
+      setRevisionRequestError("Order details are unavailable.")
+      return null
+    }
+
+    const note = normalizeText(revisionNoteInput)
+    if (!note) {
+      setRevisionRequestError("Add a short revision note first.")
+      return null
+    }
+
+    setRevisionRequestError(null)
+    setActionNotice(null)
+
+    try {
+      setIsRequestingRevision(true)
+      await agentCommerceApi.requestOrderRevision(order.id, {
+        note,
+      })
+      setRevisionNoteInput("")
+      setActionNotice("Revision request sent. AgentCommerce is preparing an updated delivery.")
+      await invalidateOrderViews()
+      return true
+    } catch (error) {
+      const message = getApiErrorMessage(error)
+      setRevisionRequestError(message)
+      return null
+    } finally {
+      setIsRequestingRevision(false)
+    }
+  }, [invalidateOrderViews, order, revisionNoteInput])
+
+  const canRequestRevision = Boolean(
+    viewerRole === "customer" &&
+      order &&
+      order.status === "DELIVERED" &&
+      activeRevisionRequest === null,
+  )
 
   const activeContractAction = useMemo(() => {
     const actionCandidates = [
@@ -620,6 +874,14 @@ export function useOrderDetail(options: {
     lifecycleStatus,
     deliveryStatus,
     nextAction,
+    revisionRequests: order?.revisionRequests ?? [],
+    activeRevisionRequest,
+    canRequestRevision,
+    revisionNoteInput,
+    setRevisionNoteInput,
+    requestRevision,
+    isRequestingRevision,
+    revisionRequestError,
     deliveryUrlInput,
     setDeliveryUrlInput,
     deliveryTextInput,

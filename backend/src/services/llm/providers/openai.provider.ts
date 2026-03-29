@@ -90,14 +90,53 @@ export class OpenAiResponsesProvider implements LlmProvider {
       );
     }
 
-    const model = request.model?.trim() || env.OPENAI_MODEL;
+    const hasFileAttachments = request.attachments?.some(
+      (attachment) => attachment.type === "file",
+    );
+    const model =
+      request.model?.trim() ||
+      (hasFileAttachments ? "gpt-4o-mini" : env.OPENAI_MODEL);
     const url = `${env.OPENAI_BASE_URL.replace(/\/+$/, "")}/responses`;
+    const userContent: Array<Record<string, unknown>> = [
+      {
+        type: "input_text",
+        text: request.userPrompt,
+      },
+    ];
+
+    for (const attachment of request.attachments ?? []) {
+      if (attachment.type === "image") {
+        userContent.push({
+          type: "input_image",
+          image_url: attachment.imageDataUrl ?? attachment.imageUrl,
+          detail: attachment.detail ?? "auto",
+        });
+        continue;
+      }
+
+      userContent.push({
+        type: "input_file",
+        ...(attachment.fileData
+          ? {
+              file_data: attachment.fileData,
+            }
+          : {
+              file_url: attachment.fileUrl,
+            }),
+        ...(attachment.fileName
+          ? {
+              filename: attachment.fileName,
+            }
+          : {}),
+      });
+    }
 
     logger.info(
       {
         provider: this.name,
         model,
         schemaName: request.schemaName,
+        attachmentCount: request.attachments?.length ?? 0,
       },
       "Calling OpenAI structured output provider",
     );
@@ -120,7 +159,7 @@ export class OpenAiResponsesProvider implements LlmProvider {
             },
             {
               role: "user",
-              content: request.userPrompt,
+              content: userContent,
             },
           ],
           text: {

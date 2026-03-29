@@ -60,6 +60,31 @@ function parseDecimalToBaseUnits(value: string, decimals: number) {
   return BigInt(`${whole}${paddedFraction}`)
 }
 
+export function formatBaseUnitsToDecimal(
+  value: bigint | string | null | undefined,
+  decimals: number,
+) {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  let numericValue: bigint
+
+  try {
+    numericValue = typeof value === "bigint" ? value : BigInt(value)
+  } catch {
+    return null
+  }
+
+  const sign = numericValue < 0n ? "-" : ""
+  const absoluteValue = numericValue < 0n ? -numericValue : numericValue
+  const padded = absoluteValue.toString().padStart(decimals + 1, "0")
+  const whole = padded.slice(0, Math.max(1, padded.length - decimals))
+  const fraction = padded.slice(Math.max(1, padded.length - decimals)).replace(/0+$/, "")
+
+  return `${sign}${whole}${fraction ? `.${fraction}` : ""}`
+}
+
 export function getCheckoutOnchainReferences(metadata: JsonValue | null) {
   if (!isRecord(metadata)) {
     return {

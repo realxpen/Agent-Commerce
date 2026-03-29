@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
 import {
+  AudioLines,
   ArrowRightLeft,
-  Bot,
   Clock3,
   ExternalLink,
   FileText,
@@ -16,11 +16,11 @@ import {
   Video,
 } from "lucide-react"
 import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
-import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
 import { OrderDeliveryPreviewCard } from "@/components/orders/OrderDeliveryPreviewCard"
 import { OrderLifecycleTimeline } from "@/components/orders/OrderLifecycleTimeline"
 import { OrderNextActionCard } from "@/components/orders/OrderNextActionCard"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -48,12 +48,14 @@ function readServiceSummary(snapshot: JsonValue) {
   }
 }
 
-function getReferenceIcon(type: "image" | "video" | "document" | "link") {
+function getReferenceIcon(type: "image" | "video" | "audio" | "document" | "link") {
   switch (type) {
     case "image":
       return ImageIcon
     case "video":
       return Video
+    case "audio":
+      return AudioLines
     case "document":
       return FileText
     case "link":
@@ -71,7 +73,8 @@ function getStatusBadgeTone(
     value === "CONFIRMED" ||
     value === "DELIVERED" ||
     value === "FINALIZED" ||
-    value === "SUCCEEDED"
+    value === "SUCCEEDED" ||
+    value === "ADDRESSED"
   ) {
     return "success"
   }
@@ -84,7 +87,9 @@ function getStatusBadgeTone(
     value === "INITIATED" ||
     value === "QUEUED" ||
     value === "RUNNING" ||
-    value === "RETRYING"
+    value === "RETRYING" ||
+    value === "OPEN" ||
+    value === "ADDRESSING"
   ) {
     return "warning"
   }
@@ -109,22 +114,28 @@ export default function OrderDetailPage() {
     orderId: params.id,
     searchParams,
   })
+  const backHref =
+    detail.viewerRole === "customer"
+      ? "/orders"
+      : detail.viewerRole === "agent_owner"
+        ? "/dashboard"
+        : "/marketplace"
+  const backLabel =
+    detail.viewerRole === "customer"
+      ? "Back to My Orders"
+      : detail.viewerRole === "agent_owner"
+        ? "Back to Dashboard"
+        : "Back to Marketplace"
 
   const serviceSummary = detail.order
     ? readServiceSummary(detail.order.service.snapshot)
     : { description: null }
 
   return (
-    <div className="min-h-screen bg-black pb-24 text-white">
-      <header className="fixed top-0 z-50 w-full border-b border-white/5 bg-black/50 backdrop-blur-xl">
-        <div className="container mx-auto flex h-16 items-center justify-between px-6">
-          <HeaderBackLink href="/marketplace" label="Back to Marketplace" />
-          <WalletSessionControls surface="checkout" showRemaining />
-        </div>
-      </header>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <HeaderBackLink href={backHref} label={backLabel} className="w-fit" />
 
-      <main className="container mx-auto px-6 pt-32">
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
           <div className="space-y-8">
             <Card className="glass-card border-white/5">
               <CardHeader className="space-y-4">
@@ -279,9 +290,11 @@ export default function OrderDetailPage() {
                                     <ReferenceIcon className="h-4 w-4 text-indigo-300" />
                                     <span>{reference.label}</span>
                                   </div>
-                                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                    {reference.type}
-                                  </p>
+                              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                                    {reference.source === "upload"
+                                      ? `${reference.type} • uploaded file`
+                                      : reference.type}
+                              </p>
                                 </div>
 
                                 <Link
@@ -304,6 +317,18 @@ export default function OrderDetailPage() {
                                   {reference.note}
                                 </p>
                               ) : null}
+
+                              {reference.source === "upload" ? (
+                                <p className="mt-3 text-xs text-white/45">
+                                  {reference.fileName ?? reference.label}
+                                  {typeof reference.sizeBytes === "number"
+                                    ? ` • ${Math.max(1, Math.round(reference.sizeBytes / 1024))} KB`
+                                    : ""}
+                                  {reference.contentType
+                                    ? ` • ${reference.contentType}`
+                                    : ""}
+                                </p>
+                              ) : null}
                             </div>
                           )
                         })}
@@ -316,7 +341,51 @@ export default function OrderDetailPage() {
                   deliveryUrl={detail.order?.delivery.url}
                   deliveryText={detail.order?.delivery.text}
                   deliveredAt={detail.order?.delivery.deliveredAt}
+                  status={detail.order?.status}
                 />
+
+                {detail.revisionRequests.length > 0 ? (
+                  <Card className="glass-card border-white/5">
+                    <CardHeader>
+                      <CardTitle className="text-xl font-display font-bold">
+                        Revision History
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {detail.revisionRequests
+                        .slice()
+                        .reverse()
+                        .map((revision) => (
+                          <div
+                            key={revision.id}
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white">
+                                  {revision.note}
+                                </p>
+                                <p className="mt-2 text-xs text-white/45">
+                                  Requested {new Date(revision.requestedAt).toLocaleString()}
+                                </p>
+                                {revision.failureReason ? (
+                                  <p className="mt-2 text-sm text-amber-100">
+                                    {revision.failureReason}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <Badge
+                                variant={getStatusBadgeTone(revision.status)}
+                                className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                              >
+                                {revision.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
 
               <Card className="glass-card border-white/5">
@@ -450,9 +519,98 @@ export default function OrderDetailPage() {
               actionNotice={detail.actionNotice}
               actionWarning={detail.actionWarning}
             />
+
+            {detail.viewerRole === "customer" &&
+            !detail.canRequestRevision &&
+            !detail.activeRevisionRequest &&
+            detail.order &&
+            detail.order.status !== "DELIVERED" &&
+            detail.order.status !== "COMPLETED" ? (
+              <Card className="glass-card border-white/5">
+                <CardHeader>
+                  <CardTitle className="text-xl font-display font-bold">
+                    Revisions open after delivery
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-white/60">
+                    Customers can request changes only after the agent submits a
+                    delivery. Right now this order is still moving through
+                    payment or fulfillment, so the revision form stays hidden
+                    until something is ready to review.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {detail.viewerRole === "customer" &&
+            !detail.canRequestRevision &&
+            !detail.activeRevisionRequest &&
+            detail.order?.status === "COMPLETED" ? (
+              <Card className="glass-card border-white/5">
+                <CardHeader>
+                  <CardTitle className="text-xl font-display font-bold">
+                    Revisions are closed for this order
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-white/60">
+                    This order has already been confirmed as complete. If you
+                    want another round of work, the next step is placing a new
+                    order rather than opening a revision on this finished one.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {detail.viewerRole === "customer" &&
+            (detail.canRequestRevision ||
+              detail.activeRevisionRequest ||
+              detail.revisionRequestError) ? (
+              <Card className="glass-card border-white/5">
+                <CardHeader>
+                  <CardTitle className="text-xl font-display font-bold">
+                    Request Changes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {detail.activeRevisionRequest ? (
+                    <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4 text-sm text-indigo-100">
+                      AgentCommerce is already processing your latest revision request.
+                    </div>
+                  ) : null}
+
+                  {detail.canRequestRevision ? (
+                    <>
+                      <textarea
+                        className="min-h-28 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm text-white placeholder:text-white/25"
+                        placeholder="Describe exactly what should change in the delivery."
+                        value={detail.revisionNoteInput}
+                        onChange={(event) => detail.setRevisionNoteInput(event.target.value)}
+                      />
+
+                      {detail.revisionRequestError ? (
+                        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                          {detail.revisionRequestError}
+                        </div>
+                      ) : null}
+
+                      <Button
+                        className="w-full"
+                        disabled={detail.isRequestingRevision}
+                        onClick={() => void detail.requestRevision()}
+                      >
+                        {detail.isRequestingRevision
+                          ? "Sending revision request..."
+                          : "Request Revision"}
+                      </Button>
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
-        </div>
-      </main>
+      </div>
     </div>
   )
 }

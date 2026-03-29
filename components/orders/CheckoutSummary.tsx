@@ -1,6 +1,8 @@
 "use client"
 
+import { useRef, type ChangeEvent } from "react"
 import {
+  AudioLines,
   Clock3,
   FileText,
   Image as ImageIcon,
@@ -9,6 +11,7 @@ import {
   Receipt,
   ShieldCheck,
   Trash2,
+  Upload,
   Video,
   Wallet,
 } from "lucide-react"
@@ -23,6 +26,7 @@ const referenceTypeOptions: Array<{
 }> = [
   { value: "image", label: "Image" },
   { value: "video", label: "Video" },
+  { value: "audio", label: "Audio" },
   { value: "document", label: "Document" },
   { value: "link", label: "Link" },
 ]
@@ -42,6 +46,8 @@ function getReferenceTypeIcon(type: OrderReferenceType) {
       return ImageIcon
     case "video":
       return Video
+    case "audio":
+      return AudioLines
     case "document":
       return FileText
     case "link":
@@ -56,13 +62,22 @@ export function CheckoutSummary({
   onCustomerNoteChange,
   customerReferences,
   onCustomerReferencesChange,
+  isUploadingReferences,
+  referenceUploadError,
+  onReferenceUploadDismiss,
+  onReferenceFilesSelected,
 }: {
   checkout: CheckoutContext
   customerNote: string
   onCustomerNoteChange: (value: string) => void
   customerReferences: OrderReference[]
   onCustomerReferencesChange: (value: OrderReference[]) => void
+  isUploadingReferences: boolean
+  referenceUploadError: string | null
+  onReferenceUploadDismiss: () => void
+  onReferenceFilesSelected: (files: File[]) => Promise<void>
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const priceLabel = checkout.currency
     ? `${checkout.displayAmount} ${checkout.currency}`
     : `${checkout.displayAmount} ${checkout.denom}`
@@ -94,6 +109,27 @@ export function CheckoutSummary({
     )
   }
 
+  const handleUploadClick = () => {
+    onReferenceUploadDismiss()
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files
+    if (!fileList || fileList.length === 0) {
+      return
+    }
+
+    const files = Array.from(fileList)
+    event.target.value = ""
+
+    try {
+      await onReferenceFilesSelected(files)
+    } catch {
+      // The upload hook exposes a friendly error banner for the user.
+    }
+  }
+
   return (
     <Card className="glass-card border-white/5 shadow-2xl overflow-hidden">
       <CardHeader className="pb-6 pt-8">
@@ -122,27 +158,56 @@ export function CheckoutSummary({
         </div>
 
         <div className="space-y-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            onChange={(event) => {
+              void handleFileSelection(event)
+            }}
+          />
+
           <div className="flex items-center justify-between gap-4">
             <div>
               <label className="text-xs font-bold uppercase tracking-widest text-white/40">
                 Reference Materials
               </label>
               <p className="mt-2 text-sm text-white/45">
-                Add links the agent should use while working, like briefs,
-                examples, docs, image boards, videos, or folders.
+                Add links or upload real files the agent should use while
+                working, like briefs, docs, screenshots, videos, and raw source
+                material.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-white/10 bg-white/5"
-              onClick={addReference}
-              disabled={customerReferences.length >= 8}
-            >
-              <Plus className="mr-2 size-4" />
-              Add Reference
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/10 bg-white/5"
+                onClick={handleUploadClick}
+                disabled={customerReferences.length >= 8 || isUploadingReferences}
+              >
+                <Upload className="mr-2 size-4" />
+                {isUploadingReferences ? "Uploading..." : "Upload File"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/10 bg-white/5"
+                onClick={addReference}
+                disabled={customerReferences.length >= 8}
+              >
+                <Plus className="mr-2 size-4" />
+                Add Link
+              </Button>
+            </div>
           </div>
+
+          {referenceUploadError ? (
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+              {referenceUploadError}
+            </div>
+          ) : null}
 
           {customerReferences.length > 0 ? (
             <div className="space-y-4">
@@ -207,7 +272,7 @@ export function CheckoutSummary({
 
                     <div className="mt-4 space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-white/35">
-                        URL
+                        {reference.source === "upload" ? "Stored File URL" : "URL"}
                       </label>
                       <input
                         value={reference.url}
@@ -216,8 +281,26 @@ export function CheckoutSummary({
                         }
                         className="h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white placeholder:text-white/20"
                         placeholder="https://drive.google.com/... or https://figma.com/..."
+                        readOnly={reference.source === "upload"}
                       />
                     </div>
+
+                    {reference.source === "upload" ? (
+                      <div className="mt-4 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/55">
+                        <p className="font-semibold text-white/75">
+                          Uploaded file
+                        </p>
+                        <p className="mt-1 break-all">
+                          {reference.fileName ?? reference.label}
+                          {typeof reference.sizeBytes === "number"
+                            ? ` • ${Math.max(1, Math.round(reference.sizeBytes / 1024))} KB`
+                            : ""}
+                          {reference.contentType
+                            ? ` • ${reference.contentType}`
+                            : ""}
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-white/35">
@@ -238,8 +321,9 @@ export function CheckoutSummary({
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-white/45">
-              No reference links added yet. The hire flow still works without
-              them, but good references usually produce better results.
+              No references added yet. The hire flow still works without them,
+              but strong source links and uploaded files usually produce better
+              results.
             </div>
           )}
         </div>

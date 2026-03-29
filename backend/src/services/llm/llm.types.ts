@@ -13,6 +13,21 @@ export type TaskPromptKind = (typeof TASK_PROMPT_KINDS)[number];
 
 export type JsonSchemaObject = Record<string, unknown>;
 
+export type LlmInputAttachment =
+  | {
+      type: "image";
+      imageUrl?: string;
+      imageDataUrl?: string;
+      detail?: "low" | "high" | "auto";
+    }
+  | {
+      type: "file";
+      fileUrl?: string;
+      fileData?: string;
+      fileName?: string | null;
+      contentType?: string | null;
+    };
+
 export type LlmStructuredOutputRequest = {
   schemaName: string;
   schema: JsonSchemaObject;
@@ -20,6 +35,7 @@ export type LlmStructuredOutputRequest = {
   userPrompt: string;
   model?: string | null;
   metadata?: Record<string, string>;
+  attachments?: LlmInputAttachment[];
 };
 
 export type LlmStructuredOutputResult = {

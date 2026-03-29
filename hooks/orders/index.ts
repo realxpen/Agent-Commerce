@@ -1,4 +1,8 @@
 export { useCreateOrder } from "@/hooks/orders/useCreateOrder"
+export { useCustomerOrdersDirectory } from "@/hooks/orders/useCustomerOrdersDirectory"
 export { useOrderDetail } from "@/hooks/orders/useOrderDetail"
+export { useRecoverMissingPayments } from "@/hooks/orders/useRecoverMissingPayments"
+export { useRecoverPendingOrderSyncs } from "@/hooks/orders/useRecoverPendingOrderSyncs"
+export { useOrderReferenceUploads } from "@/hooks/orders/useOrderReferenceUploads"
 export type { CreateOrderInput, CreateOrderStage } from "@/hooks/orders/useCreateOrder"
 export type { OrderViewerRole } from "@/hooks/orders/useOrderDetail"

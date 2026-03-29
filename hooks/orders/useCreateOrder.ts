@@ -11,6 +11,11 @@ import { useContractAction } from "@/hooks/contracts/useContractAction"
 import { createOrderWithPayment } from "@/lib/contracts/service-escrow-client"
 import { buildTransactionState } from "@/lib/transactions/messages"
 import { buildOrderDetailsHref, type CheckoutContext } from "@/lib/orders/checkout"
+import { formatBaseUnitsToDecimal } from "@/lib/orders/checkout"
+import {
+  removePendingOrderSync,
+  upsertPendingOrderSync,
+} from "@/lib/orders/pending-order-sync"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 import { agentCommerceConfig } from "@/lib/appchain/config"
 
@@ -133,6 +138,78 @@ function normalizeText(value: string) {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+function appendWarning(current: string | null, next: string) {
+  return current ? `${current} ${next}` : next
+}
+
+function resolveBackendPaymentAmount(checkout: CheckoutContext) {
+  const normalizedDisplayAmount = checkout.displayAmount.trim()
+
+  if (/^\d+(\.\d+)?$/.test(normalizedDisplayAmount)) {
+    return normalizedDisplayAmount
+  }
+
+  return (
+    formatBaseUnitsToDecimal(
+      checkout.payableAmount,
+      agentCommerceConfig.appchain.nativeCurrency.decimals,
+    ) ?? "0"
+  )
+}
+
+function buildPendingOrderSyncRecord(options: {
+  paymentReference: string
+  backendOrderId: string | null
+  checkout: CheckoutContext
+  input: CreateOrderInput
+  senderAddress: string
+  recipientAddress: string
+  txHash: `0x${string}`
+  onchainOrderId: bigint | null
+}) {
+  const backendAmount = resolveBackendPaymentAmount(options.checkout)
+
+  return {
+    id: options.paymentReference,
+    paymentReference: options.paymentReference,
+    backendOrderId: options.backendOrderId,
+    txHash: options.txHash,
+    onchainOrderId:
+      options.onchainOrderId !== null ? options.onchainOrderId.toString() : null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    orderInput: {
+      agentServiceId: options.checkout.backendServiceId!,
+      quantity: 1,
+      customerNote: normalizeText(options.input.customerNote),
+      customerReferences: normalizeReferences(options.input.customerReferences),
+      paymentReference: options.paymentReference,
+      txHash: options.txHash,
+      expectedPayment: {
+        chainId: agentCommerceConfig.appchain.interwovenChainId,
+        amount: backendAmount,
+        currency: options.checkout.currency ?? undefined,
+        denom: options.checkout.denom,
+        payerAddress: options.senderAddress,
+        recipientAddress: options.recipientAddress,
+        paymentReference: options.paymentReference,
+        txHash: options.txHash,
+      },
+    },
+    paymentInput: {
+      chainId: String(agentCommerceConfig.appchain.chainId),
+      paymentReference: options.paymentReference,
+      txHash: options.txHash,
+      amount: backendAmount,
+      currency: options.checkout.currency ?? undefined,
+      denom: options.checkout.denom,
+      sender: options.senderAddress,
+      recipient: options.recipientAddress,
+      status: "CONFIRMED" as const,
+    },
+  }
+}
+
 function normalizeReferences(value: OrderReference[]) {
   const normalized = value
     .map((reference) => ({
@@ -140,6 +217,15 @@ function normalizeReferences(value: OrderReference[]) {
       label: reference.label.trim(),
       url: reference.url.trim(),
       note: reference.note?.trim() || null,
+      source: reference.source ?? "link",
+      uploadId: reference.uploadId?.trim() || null,
+      fileName: reference.fileName?.trim() || null,
+      contentType: reference.contentType?.trim() || null,
+      sizeBytes:
+        typeof reference.sizeBytes === "number" && Number.isFinite(reference.sizeBytes)
+          ? Math.max(0, Math.trunc(reference.sizeBytes))
+          : null,
+      previewText: reference.previewText?.trim() || null,
     }))
     .filter((reference) => reference.label.length > 0 && reference.url.length > 0)
 
@@ -252,6 +338,7 @@ export function useCreateOrder(checkout: CheckoutContext) {
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `order-${Date.now()}`
+      const backendAmount = resolveBackendPaymentAmount(checkout)
 
       let backendOrder: OrderDto | null = null
       let nextWarning: string | null = null
@@ -274,7 +361,7 @@ export function useCreateOrder(checkout: CheckoutContext) {
             paymentReference,
             expectedPayment: {
               chainId: agentCommerceConfig.appchain.interwovenChainId,
-              amount: checkout.payableAmount!.toString(),
+              amount: backendAmount,
               currency: checkout.currency ?? undefined,
               denom: checkout.denom,
               payerAddress: wallet.hexAddress ?? undefined,
@@ -305,6 +392,79 @@ export function useCreateOrder(checkout: CheckoutContext) {
 
       setManualStage("syncing")
 
+      const senderAddress =
+        wallet.hexAddress ?? wallet.address ?? wallet.initiaAddress ?? null
+      const recipientAddress =
+        checkout.treasuryAddress ?? backendOrder?.agent.treasuryAddress ?? null
+
+      const pendingOrderSync =
+        senderAddress && recipientAddress
+          ? buildPendingOrderSyncRecord({
+              paymentReference,
+              backendOrderId: backendOrder?.id ?? null,
+              checkout,
+              input,
+              senderAddress,
+              recipientAddress,
+              txHash: contractResult.txHash,
+              onchainOrderId: contractResult.data.orderId,
+            })
+          : null
+
+      if (pendingOrderSync) {
+        upsertPendingOrderSync(pendingOrderSync)
+      }
+
+      if (backendOrder) {
+        try {
+          const syncedOrder = await agentCommerceApi.updateOrderStatus(backendOrder.id, {
+            status: backendOrder.status,
+            paymentReference,
+            txHash: contractResult.txHash,
+          })
+
+          backendOrder = syncedOrder.data
+          setCreatedOrder(syncedOrder.data)
+        } catch (error) {
+          nextWarning = appendWarning(
+            nextWarning,
+            `${getApiErrorMessage(error)} The order was paid on-chain, but the backend order record could not be updated with the payment reference yet.`,
+          )
+        }
+
+        if (!senderAddress || !recipientAddress) {
+          nextWarning = appendWarning(
+            nextWarning,
+            "The on-chain payment succeeded, but AgentCommerce could not save the backend payment record because the wallet or treasury address was missing.",
+          )
+        } else {
+          try {
+            await agentCommerceApi.createPaymentRecord({
+              orderId: backendOrder.id,
+              chainId: String(agentCommerceConfig.appchain.chainId),
+              paymentReference,
+              txHash: contractResult.txHash,
+              amount: backendAmount,
+              currency: checkout.currency ?? undefined,
+              denom: checkout.denom,
+              sender: senderAddress,
+              recipient: recipientAddress,
+              status: "CONFIRMED",
+            })
+
+            const refreshedOrder = await agentCommerceApi.getOrder(backendOrder.id)
+            backendOrder = refreshedOrder.data
+            setCreatedOrder(refreshedOrder.data)
+            removePendingOrderSync(paymentReference)
+          } catch (error) {
+            nextWarning = appendWarning(
+              nextWarning,
+              `${getApiErrorMessage(error)} The chain payment is confirmed, but the backend payment sync still needs attention.`,
+            )
+          }
+        }
+      }
+
       if (backendOrder) {
         await queryClient.invalidateQueries({
           queryKey: apiQueryKeys.order(backendOrder.id),
@@ -312,7 +472,19 @@ export function useCreateOrder(checkout: CheckoutContext) {
       }
 
       await queryClient.invalidateQueries({
+        queryKey: ["api", "orders"],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ["api", "dashboard-stats"],
+      })
+
+      await queryClient.invalidateQueries({
         queryKey: ["api", "transactions"],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ["api", "tasks"],
       })
 
       const syntheticOrderId = backendOrder
@@ -350,8 +522,10 @@ export function useCreateOrder(checkout: CheckoutContext) {
       session,
       auth,
       auth.errorMessage,
+      wallet.address,
       wallet.expectedChainId,
       wallet.hexAddress,
+      wallet.initiaAddress,
       wallet.isConfigured,
       wallet.isConnected,
       wallet.isOnExpectedAppchain,

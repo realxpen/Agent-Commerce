@@ -1,5 +1,6 @@
 import {
   AgentStatus,
+  PaymentConfirmationStatus,
   PaymentStatus,
   Prisma,
   TreasuryPeriod,
@@ -97,10 +98,13 @@ export async function getDashboardStats(
     totalOrders,
     paidOrders,
     totalTasks,
-    confirmedPayments,
+    finalizedPayments,
+    escrowedPayments,
     pendingPayments,
+    totalPayments,
     latestPayment,
-    allTimeConfirmedPayments,
+    allTimeFinalizedPayments,
+    allTimeEscrowedPayments,
     allTimePendingPayments,
     trendSnapshots,
   ] = await Promise.all([
@@ -129,10 +133,30 @@ export async function getDashboardStats(
       where: {
         ...paymentWhere,
         status: PaymentStatus.CONFIRMED,
+        confirmationStatus: PaymentConfirmationStatus.FINALIZED,
       },
       _sum: {
         amount: true,
         feeAmount: true,
+      },
+      _count: {
+        _all: true,
+      },
+    }),
+    db.payment.aggregate({
+      where: {
+        ...paymentWhere,
+        status: PaymentStatus.CONFIRMED,
+        confirmationStatus: {
+          in: [
+            PaymentConfirmationStatus.UNCONFIRMED,
+            PaymentConfirmationStatus.CONFIRMING,
+            PaymentConfirmationStatus.CONFIRMED,
+          ],
+        },
+      },
+      _sum: {
+        amount: true,
       },
       _count: {
         _all: true,
@@ -151,6 +175,9 @@ export async function getDashboardStats(
       _count: {
         _all: true,
       },
+    }),
+    db.payment.count({
+      where: paymentWhere,
     }),
     db.payment.findFirst({
       where: allTimePaymentWhere,
@@ -171,10 +198,27 @@ export async function getDashboardStats(
       where: {
         ...allTimePaymentWhere,
         status: PaymentStatus.CONFIRMED,
+        confirmationStatus: PaymentConfirmationStatus.FINALIZED,
       },
       _sum: {
         amount: true,
         feeAmount: true,
+      },
+    }),
+    db.payment.aggregate({
+      where: {
+        ...allTimePaymentWhere,
+        status: PaymentStatus.CONFIRMED,
+        confirmationStatus: {
+          in: [
+            PaymentConfirmationStatus.UNCONFIRMED,
+            PaymentConfirmationStatus.CONFIRMING,
+            PaymentConfirmationStatus.CONFIRMED,
+          ],
+        },
+      },
+      _sum: {
+        amount: true,
       },
     }),
     db.payment.aggregate({
@@ -209,17 +253,21 @@ export async function getDashboardStats(
     }),
   ]);
 
-  const grossRevenue = confirmedPayments._sum.amount ?? new Prisma.Decimal(0);
-  const confirmedFeeAmount = confirmedPayments._sum.feeAmount ?? new Prisma.Decimal(0);
+  const grossRevenue = finalizedPayments._sum.amount ?? new Prisma.Decimal(0);
+  const confirmedFeeAmount = finalizedPayments._sum.feeAmount ?? new Prisma.Decimal(0);
   const netRevenue = grossRevenue.minus(confirmedFeeAmount);
-  const pendingRevenue = pendingPayments._sum.amount ?? new Prisma.Decimal(0);
+  const pendingRevenue = (escrowedPayments._sum.amount ?? new Prisma.Decimal(0)).plus(
+    pendingPayments._sum.amount ?? new Prisma.Decimal(0),
+  );
 
   const allTimeConfirmedAmount =
-    allTimeConfirmedPayments._sum.amount ?? new Prisma.Decimal(0);
+    allTimeFinalizedPayments._sum.amount ?? new Prisma.Decimal(0);
   const allTimeConfirmedFeeAmount =
-    allTimeConfirmedPayments._sum.feeAmount ?? new Prisma.Decimal(0);
+    allTimeFinalizedPayments._sum.feeAmount ?? new Prisma.Decimal(0);
   const availableBalance = allTimeConfirmedAmount.minus(allTimeConfirmedFeeAmount);
-  const pendingBalance = allTimePendingPayments._sum.amount ?? new Prisma.Decimal(0);
+  const pendingBalance = (allTimeEscrowedPayments._sum.amount ?? new Prisma.Decimal(0)).plus(
+    allTimePendingPayments._sum.amount ?? new Prisma.Decimal(0),
+  );
 
   const trendsByLabel = new Map<
     string,
@@ -260,8 +308,7 @@ export async function getDashboardStats(
       activeAgents,
       totalOrders,
       paidOrders,
-      totalTransactions:
-        confirmedPayments._count._all + pendingPayments._count._all,
+      totalTransactions: totalPayments,
       totalTasks,
       grossRevenue: decimalToString(grossRevenue),
       netRevenue: decimalToString(netRevenue),

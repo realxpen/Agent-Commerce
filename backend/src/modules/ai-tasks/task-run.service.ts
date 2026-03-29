@@ -22,6 +22,49 @@ function getRetryDelayMs(attemptNumber: number) {
   return Math.min(30_000, 1_000 * 2 ** Math.max(0, attemptNumber - 1));
 }
 
+function getTaskExecutionErrorDetail(
+  error: TaskExecutionError,
+  key: string,
+) {
+  if (!error.details || typeof error.details !== "object" || Array.isArray(error.details)) {
+    return null;
+  }
+
+  const value = (error.details as Record<string, unknown>)[key];
+  return value ?? null;
+}
+
+function isQuotaExceededError(error: unknown) {
+  if (!(error instanceof TaskExecutionError) || error.code !== "provider_request_failed") {
+    return false;
+  }
+
+  const statusCode = getTaskExecutionErrorDetail(error, "statusCode");
+  const response = getTaskExecutionErrorDetail(error, "response");
+
+  if (statusCode !== 429 || !response || typeof response !== "object" || Array.isArray(response)) {
+    return false;
+  }
+
+  const errorObject =
+    "error" in response &&
+    response.error &&
+    typeof response.error === "object" &&
+    !Array.isArray(response.error)
+      ? (response.error as Record<string, unknown>)
+      : null;
+
+  return errorObject?.code === "insufficient_quota";
+}
+
+function formatFailureReason(error: unknown) {
+  if (isQuotaExceededError(error)) {
+    return "Automated fulfillment is paused because the configured OpenAI account has no remaining quota. Customer payment is still secured, but the agent owner needs to restore billing or resume fulfillment manually.";
+  }
+
+  return error instanceof Error ? error.message : "Unknown task execution failure";
+}
+
 export async function processTaskRun(
   db: PrismaClient,
   queues: AppQueues,
@@ -104,12 +147,19 @@ export async function processTaskRun(
 
     return completedRun;
   } catch (error) {
-    const failureReason = error instanceof Error ? error.message : "Unknown task execution failure";
-    const canRetry = runningTaskRun.attemptNumber < runningTaskRun.maxAttempts;
+    const failureReason = formatFailureReason(error);
+    const canRetry =
+      !isQuotaExceededError(error) &&
+      runningTaskRun.attemptNumber < runningTaskRun.maxAttempts;
     const retryDelayMs = canRetry ? getRetryDelayMs(runningTaskRun.attemptNumber) : null;
     const errorDetails = {
       retryScheduled: canRetry,
       retryDelayMs,
+      ...(isQuotaExceededError(error)
+        ? {
+            reason: "provider_quota_exceeded",
+          }
+        : {}),
       ...(error instanceof TaskExecutionError
         ? {
             code: error.code,

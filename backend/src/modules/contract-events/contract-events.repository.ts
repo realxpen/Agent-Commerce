@@ -1,5 +1,6 @@
 import {
   ContractEventStatus,
+  PaymentConfirmationStatus,
   Prisma,
   PaymentStatus,
   TreasuryPeriod,
@@ -177,18 +178,35 @@ export async function recomputeDailyTreasurySnapshot(
     },
   } satisfies Prisma.PaymentWhereInput;
 
-  const [confirmedPayments, pendingPayments, refundPayments, allPayments, orders] =
+  const [finalizedPayments, escrowedPayments, pendingPayments, refundPayments, allPayments, orders] =
     await Promise.all([
       db.payment.aggregate({
         where: {
           ...baseWhere,
           status: PaymentStatus.CONFIRMED,
+          confirmationStatus: PaymentConfirmationStatus.FINALIZED,
         },
         _sum: {
           amount: true,
         },
         _count: {
           _all: true,
+        },
+      }),
+      db.payment.aggregate({
+        where: {
+          ...baseWhere,
+          status: PaymentStatus.CONFIRMED,
+          confirmationStatus: {
+            in: [
+              PaymentConfirmationStatus.UNCONFIRMED,
+              PaymentConfirmationStatus.CONFIRMING,
+              PaymentConfirmationStatus.CONFIRMED,
+            ],
+          },
+        },
+        _sum: {
+          amount: true,
         },
       }),
       db.payment.aggregate({
@@ -226,10 +244,11 @@ export async function recomputeDailyTreasurySnapshot(
       }),
     ]);
 
-  const confirmedAmount = confirmedPayments._sum.amount ?? new Prisma.Decimal(0);
+  const confirmedAmount = finalizedPayments._sum.amount ?? new Prisma.Decimal(0);
+  const escrowedAmount = escrowedPayments._sum.amount ?? new Prisma.Decimal(0);
   const pendingAmount = pendingPayments._sum.amount ?? new Prisma.Decimal(0);
   const refundAmount = refundPayments._sum.amount ?? new Prisma.Decimal(0);
-  const totalBalance = confirmedAmount.plus(pendingAmount);
+  const totalBalance = confirmedAmount.plus(escrowedAmount).plus(pendingAmount);
   const netRevenue = confirmedAmount.minus(refundAmount);
 
   return db.treasurySnapshot.upsert({
@@ -251,7 +270,7 @@ export async function recomputeDailyTreasurySnapshot(
       denom: input.denom,
       totalBalance,
       availableBalance: confirmedAmount,
-      pendingBalance: pendingAmount,
+      pendingBalance: escrowedAmount.plus(pendingAmount),
       grossRevenue: confirmedAmount,
       netRevenue,
       refundAmount,
@@ -267,7 +286,7 @@ export async function recomputeDailyTreasurySnapshot(
       windowEnd,
       totalBalance,
       availableBalance: confirmedAmount,
-      pendingBalance: pendingAmount,
+      pendingBalance: escrowedAmount.plus(pendingAmount),
       grossRevenue: confirmedAmount,
       netRevenue,
       refundAmount,

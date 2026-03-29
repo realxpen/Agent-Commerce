@@ -13,7 +13,7 @@ import { OrderSuccessConfirmation } from "@/components/orders/OrderSuccessConfir
 import { TransactionStatusCard } from "@/components/orders/TransactionStatusCard"
 import { useSession } from "@/components/providers/SessionProvider"
 import { SessionApprovalCard } from "@/components/session"
-import { useCreateOrder } from "@/hooks/orders"
+import { useCreateOrder, useOrderReferenceUploads } from "@/hooks/orders"
 import type { OrderReference } from "@/lib/api/types"
 import { parseCheckoutContext } from "@/lib/orders/checkout"
 
@@ -29,6 +29,7 @@ export default function CheckoutPage() {
     searchParams,
   })
   const createOrder = useCreateOrder(checkout)
+  const referenceUploads = useOrderReferenceUploads()
 
   const backHref = checkout.agentSlug
     ? `/agent/${checkout.backendAgentId}`
@@ -107,6 +108,25 @@ export default function CheckoutPage() {
                   onCustomerNoteChange={setCustomerNote}
                   customerReferences={customerReferences}
                   onCustomerReferencesChange={setCustomerReferences}
+                  isUploadingReferences={referenceUploads.isUploading}
+                  referenceUploadError={referenceUploads.uploadError}
+                  onReferenceUploadDismiss={referenceUploads.clearUploadError}
+                  onReferenceFilesSelected={async (files) => {
+                    const availableSlots = Math.max(0, 8 - customerReferences.length)
+                    const nextFiles = files.slice(0, availableSlots)
+
+                    if (nextFiles.length === 0) {
+                      return
+                    }
+
+                    const uploadedReferences =
+                      await referenceUploads.uploadFiles(nextFiles)
+
+                    setCustomerReferences((current) => [
+                      ...current,
+                      ...uploadedReferences,
+                    ])
+                  }}
                 />
 
                 <div className="space-y-5">

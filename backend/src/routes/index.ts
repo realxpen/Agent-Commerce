@@ -11,6 +11,7 @@ import { orderRoutes } from "../modules/orders/orders.routes.js";
 import { paymentRoutes } from "../modules/payments/payments.routes.js";
 import { sessionApprovalRoutes } from "../modules/session-approvals/session-approvals.routes.js";
 import { serviceRoutes } from "../modules/services/services.routes.js";
+import { uploadRoutes } from "../modules/uploads/uploads.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/", async () => ({
@@ -51,6 +52,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
       await api.register(sessionApprovalRoutes, {
         prefix: "/session-approvals",
+      });
+
+      await api.register(uploadRoutes, {
+        prefix: "/uploads",
       });
 
       await api.register(serviceRoutes);

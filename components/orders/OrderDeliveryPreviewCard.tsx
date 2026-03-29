@@ -7,12 +7,15 @@ export function OrderDeliveryPreviewCard({
   deliveryUrl,
   deliveryText,
   deliveredAt,
+  status,
 }: {
   deliveryUrl?: string | null
   deliveryText?: string | null
   deliveredAt?: string | null
+  status?: "PENDING" | "PAID" | "IN_PROGRESS" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "FAILED" | null
 }) {
   const hasDelivery = Boolean(deliveryUrl || deliveryText)
+  const isFailureNote = status === "FAILED" && !deliveredAt
 
   return (
     <Card className="glass-card border-white/5">
@@ -46,12 +49,16 @@ export function OrderDeliveryPreviewCard({
             {deliveryText ? (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center gap-2 text-white/70">
-                  <FileText className="h-4 w-4 text-indigo-400" />
+                  <FileText className={`h-4 w-4 ${isFailureNote ? "text-amber-400" : "text-indigo-400"}`} />
                   <span className="text-xs font-bold uppercase tracking-[0.18em]">
-                    Delivery Note
+                    {isFailureNote ? "Failure Note" : "Delivery Note"}
                   </span>
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/70">
+                <p
+                  className={`mt-3 whitespace-pre-wrap text-sm leading-relaxed ${
+                    isFailureNote ? "text-amber-100" : "text-white/70"
+                  }`}
+                >
                   {deliveryText}
                 </p>
               </div>

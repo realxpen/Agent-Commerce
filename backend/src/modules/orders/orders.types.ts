@@ -22,6 +22,7 @@ export const orderDtoSelect = {
   denom: true,
   customerNote: true,
   customerReferences: true,
+  revisionRequests: true,
   deliveryUrl: true,
   deliveryText: true,
   paymentReference: true,
@@ -98,10 +99,26 @@ export type OrderDto = {
   };
   customerNote: string | null;
   customerReferences: Array<{
-    type: "image" | "video" | "document" | "link";
+    type: "image" | "video" | "audio" | "document" | "link";
     label: string;
     url: string;
     note: string | null;
+    source: "link" | "upload";
+    uploadId: string | null;
+    fileName: string | null;
+    contentType: string | null;
+    sizeBytes: number | null;
+    previewText: string | null;
+  }>;
+  revisionRequests: Array<{
+    id: string;
+    requestedByUserId: string;
+    note: string;
+    status: "OPEN" | "ADDRESSING" | "ADDRESSED" | "FAILED";
+    requestedAt: string;
+    updatedAt: string;
+    resolvedAt: string | null;
+    failureReason: string | null;
   }>;
   payment: {
     reference: string | null;

@@ -11,11 +11,14 @@ import type {
   CreateServiceMetadataInput,
   CreateAgentMetadataInput,
   CreateOrderRecordInput,
+  CreatePaymentRecordInput,
   CurrentAuthSessionDto,
   DashboardStatsDto,
   DataResponse,
   ListAgentsParams,
+  ListCustomerOrdersParams,
   ListDashboardStatsParams,
+  ListOwnerOrdersParams,
   ListServicesParams,
   ListTasksParams,
   ListTransactionsParams,
@@ -23,12 +26,16 @@ import type {
   NormalizedApiError,
   OrderDto,
   PaginatedResponse,
+  RequestOrderRevisionInput,
   RevokeAutoSignSessionInput,
   SyncAutoSignSessionInput,
   TaskDto,
   TransactionDto,
   UpdateAgentMetadataInput,
+  UpdateOrderStatusInput,
   UpdateServiceMetadataInput,
+  UploadedReferenceFileDto,
+  UploadReferenceFileInput,
   VerifyWalletAuthInput,
 } from "@/lib/api/types"
 
@@ -526,8 +533,41 @@ export class AgentCommerceApiClient {
     })
   }
 
+  createPaymentRecord(input: CreatePaymentRecordInput, signal?: AbortSignal) {
+    return this.request<DataResponse<TransactionDto>>("/api/v1/payments", {
+      method: "POST",
+      body: input,
+      signal,
+    })
+  }
+
   getOrder(orderId: string, signal?: AbortSignal) {
     return this.request<DataResponse<OrderDto>>(`/api/v1/orders/${orderId}`, {
+      signal,
+    })
+  }
+
+  listCustomerOrders(
+    customerId: string,
+    params: ListCustomerOrdersParams = {},
+    signal?: AbortSignal,
+  ) {
+    return this.request<PaginatedResponse<OrderDto>>(
+      `/api/v1/orders/customer/${customerId}`,
+      {
+        query: params,
+        signal,
+      },
+    )
+  }
+
+  listOwnerOrders(
+    ownerId: string,
+    params: ListOwnerOrdersParams = {},
+    signal?: AbortSignal,
+  ) {
+    return this.request<PaginatedResponse<OrderDto>>(`/api/v1/orders/owner/${ownerId}`, {
+      query: params,
       signal,
     })
   }
@@ -545,6 +585,38 @@ export class AgentCommerceApiClient {
         signal,
       },
     )
+  }
+
+  requestOrderRevision(
+    orderId: string,
+    input: RequestOrderRevisionInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<DataResponse<OrderDto>>(`/api/v1/orders/${orderId}/revision-request`, {
+      method: "POST",
+      body: input,
+      signal,
+    })
+  }
+
+  updateOrderStatus(
+    orderId: string,
+    input: UpdateOrderStatusInput,
+    signal?: AbortSignal,
+  ) {
+    return this.request<DataResponse<OrderDto>>(`/api/v1/orders/${orderId}/status`, {
+      method: "PATCH",
+      body: input,
+      signal,
+    })
+  }
+
+  uploadReferenceFile(input: UploadReferenceFileInput, signal?: AbortSignal) {
+    return this.request<DataResponse<UploadedReferenceFileDto>>("/api/v1/uploads", {
+      method: "POST",
+      body: input,
+      signal,
+    })
   }
 
   markOrderCompleted(orderId: string, signal?: AbortSignal) {

@@ -12,7 +12,8 @@ import {
   ListTodo,
   Store,
   ArrowRightLeft,
-  Layers3
+  Layers3,
+  ReceiptText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { BrandMark } from "@/components/layout/BrandMark"
@@ -28,6 +29,7 @@ const navigation = [
   { name: "Bridge", href: "/dashboard/bridge", icon: ArrowRightLeft },
   { name: "Tasks", href: "/dashboard/tasks", icon: ListTodo },
   { name: "Marketplace", href: "/marketplace", icon: Store },
+  { name: "My Orders", href: "/orders", icon: ReceiptText },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
@@ -42,7 +44,9 @@ export function Sidebar() {
 
       <nav className="flex-1 px-4 space-y-1.5 mt-4">
         {navigation.map((item) => {
-          const isActive = pathname === item.href
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
           return (
             <Link
               key={item.href}

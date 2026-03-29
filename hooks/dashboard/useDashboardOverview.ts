@@ -95,6 +95,8 @@ function getActivityToneForPayment(
 
   if (
     transaction.status === "PENDING" ||
+    (transaction.status === "CONFIRMED" &&
+      transaction.confirmationStatus !== "FINALIZED") ||
     transaction.confirmationStatus === "CONFIRMING" ||
     transaction.confirmationStatus === "UNCONFIRMED"
   ) {
@@ -131,8 +133,11 @@ function getActivityToneForTask(task: TaskDto): DashboardActivityTone {
 function mapTransactionActivity(transaction: TransactionDto): DashboardActivityItem {
   const denomLabel = transaction.currency ?? transaction.denom
   const statusCopy =
-    transaction.status === "CONFIRMED"
-      ? "Payment confirmed"
+    transaction.status === "CONFIRMED" &&
+      transaction.confirmationStatus === "FINALIZED"
+      ? "Payment released"
+      : transaction.status === "CONFIRMED"
+        ? "Funds are in escrow"
       : transaction.status === "FAILED"
         ? "Payment needs attention"
         : "Payment is moving through the appchain"

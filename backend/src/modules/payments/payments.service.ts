@@ -60,11 +60,72 @@ function toPaymentDto(payment: PaymentRecord): PaymentDto {
   };
 }
 
+function buildOrderSyncContextFromPayment(payment: PaymentRecord) {
+  return {
+    orderId: payment.orderId,
+    status: payment.status,
+    amount: payment.amount,
+    paymentReference: payment.paymentReference,
+    txHash: payment.txHash,
+    failureReason: payment.failureReason,
+    occurredAt: payment.confirmedAt ?? payment.updatedAt,
+  };
+}
+
+function normalizeDecimalString(value: string) {
+  const trimmed = value.trim();
+
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+
+  const [rawWholePart = "0", rawFractionPart = ""] = trimmed.split(".");
+  const wholePart = rawWholePart;
+  const fractionPart = rawFractionPart;
+  const whole = wholePart.replace(/^0+(?=\d)/, "");
+  const fraction = fractionPart.replace(/0+$/, "");
+
+  return fraction.length > 0 ? `${whole}.${fraction}` : whole;
+}
+
+function exceedsDecimalPrecision(
+  value: string,
+  precision: number,
+  scale: number,
+) {
+  const normalized = normalizeDecimalString(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  const [rawWhole = "0", rawFraction = ""] = normalized.split(".");
+  const whole = rawWhole;
+  const fraction = rawFraction;
+  return whole.length > precision - scale || fraction.length > scale;
+}
+
+function resolveStoredPaymentAmount(
+  order: {
+    quotedPriceAmount: Prisma.Decimal;
+    finalPaidAmount: Prisma.Decimal | null;
+  },
+  inputAmount: string,
+) {
+  if (!exceedsDecimalPrecision(inputAmount, 36, 18)) {
+    return new Prisma.Decimal(inputAmount);
+  }
+
+  return order.finalPaidAmount ?? order.quotedPriceAmount;
+}
+
 export async function createPayment(
   db: PrismaClient,
   queues: AppQueues,
   input: CreatePaymentBody,
 ): Promise<PaymentDto> {
+  let shouldTriggerTaskProcessing = false;
+
   const payment = await db.$transaction(async (tx): Promise<PaymentRecord> => {
     const order = await findOrderForPaymentCreate(tx, input.orderId);
 
@@ -79,32 +140,63 @@ export async function createPayment(
     });
 
     if (existingPayment) {
-      return existingPayment;
+      await syncOrderFromPaymentStatus(
+        tx,
+        buildOrderSyncContextFromPayment(existingPayment),
+      );
+      shouldTriggerTaskProcessing = existingPayment.status === "CONFIRMED";
+      return findPaymentOrThrow(tx, existingPayment.id);
     }
 
     if (input.recipient !== order.agent.treasuryAddress) {
       throw createHttpError(409, "Payment recipient must match the agent treasury address");
     }
 
-    const paymentRecord = await createPaymentRecord(
-      tx,
-      buildPaymentWriteData({
-        orderId: order.id,
-        agentId: order.agentId,
-        chainId: input.chainId,
-        paymentReference: input.paymentReference ?? null,
-        txHash: input.txHash ?? null,
-        amount: new Prisma.Decimal(input.amount),
-        feeAmount:
-          input.feeAmount !== undefined ? new Prisma.Decimal(input.feeAmount) : undefined,
-        currency: input.currency ?? order.currency ?? null,
-        denom: input.denom,
-        payerAddress: input.sender,
-        recipientAddress: input.recipient,
-        status: input.status,
-        failureReason: input.failureReason ?? null,
-      }),
-    );
+    let paymentRecord: PaymentRecord;
+
+    try {
+      paymentRecord = await createPaymentRecord(
+        tx,
+        buildPaymentWriteData({
+          orderId: order.id,
+          agentId: order.agentId,
+          chainId: input.chainId,
+          paymentReference: input.paymentReference ?? null,
+          txHash: input.txHash ?? null,
+          amount: resolveStoredPaymentAmount(order, input.amount),
+          feeAmount:
+            input.feeAmount !== undefined ? new Prisma.Decimal(input.feeAmount) : undefined,
+          currency: input.currency ?? order.currency ?? null,
+          denom: input.denom,
+          payerAddress: input.sender,
+          recipientAddress: input.recipient,
+          status: input.status,
+          failureReason: input.failureReason ?? null,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const recoveredPayment = await findExistingPaymentForCreate(tx, {
+          orderId: input.orderId,
+          paymentReference: input.paymentReference ?? null,
+          txHash: input.txHash ?? null,
+        });
+
+        if (recoveredPayment) {
+          await syncOrderFromPaymentStatus(
+            tx,
+            buildOrderSyncContextFromPayment(recoveredPayment),
+          );
+          shouldTriggerTaskProcessing = recoveredPayment.status === "CONFIRMED";
+          return findPaymentOrThrow(tx, recoveredPayment.id);
+        }
+      }
+
+      throw error;
+    }
 
     await syncOrderFromPaymentStatus(tx, {
       orderId: order.id,
@@ -116,10 +208,11 @@ export async function createPayment(
       occurredAt: paymentRecord.confirmedAt,
     });
 
+    shouldTriggerTaskProcessing = paymentRecord.status === "CONFIRMED";
     return paymentRecord;
   });
 
-  if (payment.status === "CONFIRMED") {
+  if (shouldTriggerTaskProcessing) {
     await maybeTriggerTaskProcessingForOrder(db, queues, {
       orderId: payment.orderId,
       source: "payment-create",

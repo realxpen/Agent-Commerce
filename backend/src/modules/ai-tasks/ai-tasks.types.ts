@@ -62,6 +62,7 @@ export const taskRunSelect = {
       deliveryStatus: true,
       serviceTitleSnapshot: true,
       customerNote: true,
+      revisionRequests: true,
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
@@ -132,6 +133,7 @@ export type TaskRunDto = {
     deliveryStatus: string;
     serviceTitle: string;
     customerNote: string | null;
+    revisionRequests: unknown;
     paymentReference: string | null;
     txHash: string | null;
     quotedPriceAmount: string;

@@ -72,9 +72,9 @@ else
     [ -z "$CHAIN_ID" ] && CHAIN_ID=$(grep "chain-id" "$HOME/.minitia/config/genesis.json" | cut -d '"' -f 4 || echo "")
     # Try to find denom from artifacts
     if [ -f "minitia.config.json" ]; then
-       DEFAULT_DENOM=$(jq -r '.l2_config.denom' minitia.config.json)
+      DEFAULT_DENOM=$(jq -r '.l2_config.denom' minitia.config.json)
     else
-       DEFAULT_DENOM="GAS" # Common default for EVM appchains
+      DEFAULT_DENOM="GAS" # Common default for EVM appchains
     fi
   else
     DEFAULT_DENOM="uapp"
