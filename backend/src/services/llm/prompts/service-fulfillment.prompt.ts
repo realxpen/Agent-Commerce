@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { SERVICE_EXECUTION_MODES } from "../../../modules/services/service-execution.js";
+import { TASK_TOOL_NAMES } from "../llm.types.js";
 import type { PromptBuildContext, TaskPromptDefinition } from "./types.js";
 
 const serviceFulfillmentInputSchema = z.object({
@@ -66,7 +68,47 @@ const serviceFulfillmentInputSchema = z.object({
   execution: z.object({
     attemptNumber: z.number().int().positive(),
     createdAt: z.string().min(1),
+    mode: z.enum(SERVICE_EXECUTION_MODES).default("text_delivery"),
+    ownerReviewRequired: z.boolean().default(false),
+    autoDelivery: z.boolean().default(true),
   }),
+  toolContext: z
+    .object({
+      allowedTools: z.array(z.enum(TASK_TOOL_NAMES)).max(8).default([]),
+      results: z
+        .array(
+          z.object({
+            toolName: z.enum(TASK_TOOL_NAMES),
+            title: z.string().min(1),
+            summary: z.string().min(1),
+            sourceLabel: z.string().nullable().optional(),
+            url: z.string().nullable().optional(),
+            excerpt: z.string().nullable().optional(),
+            artifactUrl: z.string().nullable().optional(),
+          }),
+        )
+        .max(12)
+        .default([]),
+      artifacts: z
+        .array(
+          z.object({
+            artifactId: z.string().min(1),
+            taskRunId: z.string().min(1),
+            orderId: z.string().nullable(),
+            title: z.string().min(1),
+            fileName: z.string().min(1),
+            contentType: z.string().min(1),
+            sizeBytes: z.number().int().nonnegative(),
+            source: z.enum(["tool", "llm", "delivery_bundle"]),
+            toolName: z.string().nullable(),
+            url: z.string().min(1),
+            createdAt: z.string().min(1),
+          }),
+        )
+        .max(12)
+        .default([]),
+    })
+    .optional(),
 });
 
 const serviceArtifactSchema = z.object({
@@ -151,6 +193,20 @@ export function buildServiceFulfillmentPrompt(
     ? `Additional instructions from the agent owner:\n${context.config.additionalInstructions}`
     : null;
 
+  const modeInstructions = (() => {
+    switch (input.execution.mode) {
+      case "research_with_links":
+        return "This service is in research_with_links mode. Prioritize reference-aware analysis, clearly separate known facts from assumptions, and use the provided materials instead of pretending you browsed unseen sources.";
+      case "file_generation":
+        return "This service is in file_generation mode. Produce export-ready deliverable text and use artifacts to separate primary file sections or structured outputs the owner can hand off directly.";
+      case "hybrid_ai_plus_owner_review":
+        return "This service is in hybrid_ai_plus_owner_review mode. Produce a polished internal draft for the agent owner to review before it reaches the customer. Keep it high quality, but remember the owner may edit it before delivery.";
+      case "text_delivery":
+      default:
+        return "This service is in text_delivery mode. Produce a customer-ready delivery that can be attached directly if the workflow allows auto-delivery.";
+    }
+  })();
+
   return {
     promptKind: "service_fulfillment",
     schemaName: "service_fulfillment_v1",
@@ -162,7 +218,11 @@ export function buildServiceFulfillmentPrompt(
       "Customer references can include links and uploaded files.",
       "If a reference includes previewText, treat that preview as usable source material, including extracted DOCX text and audio/video transcripts.",
       "If a reference only includes a URL or file metadata without previewText, do not pretend you inspected the full file contents.",
+      "Tool outputs are deterministic runtime-generated context from AgentCommerce.",
+      "If toolContext is present, use it as grounded support material.",
+      "If a tool result or tool artifact is absent, do not imply it existed.",
       "If there is an OPEN or ADDRESSING revision request, update the existing delivery to satisfy the latest revision note.",
+      modeInstructions,
       "Focus only on the purchased service work and the deliverable itself.",
       "Return only JSON that matches the supplied schema.",
     ].join(" "),
@@ -183,6 +243,7 @@ export function buildServiceFulfillmentPrompt(
             customerNote: input.customerNote,
             customerReferences: input.customerReferences,
             revisionRequests: input.revisionRequests,
+            toolContext: input.toolContext ?? null,
           },
           customer: input.customer,
           agent: input.agent,

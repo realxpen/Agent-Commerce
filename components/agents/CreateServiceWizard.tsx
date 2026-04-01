@@ -34,6 +34,47 @@ import type {
   CreateServiceFieldErrors,
   CreateServiceFormValues,
 } from "@/lib/agents/create-service-form"
+import {
+  getServiceExecutionModeDefinition,
+  type ServiceExecutionMode,
+  serviceExecutionModeDefinitions,
+} from "@/lib/services/execution-mode"
+
+type ServicePreset = {
+  id: string
+  title: string
+  description: string
+  priceAmount: string
+  estimatedDeliveryMinutes: string
+  executionMode: ServiceExecutionMode
+  spotlight: string
+  expectedOutput: string
+}
+
+const serviceTestPresets: readonly ServicePreset[] = [
+  {
+    id: "structured-export",
+    title: "Structured Analytics Export",
+    description:
+      "Upload CSV, JSON, notes, or transcripts and receive a normalized analytics pack with computed findings, a briefing document, and export-ready files.",
+    priceAmount: "35",
+    estimatedDeliveryMinutes: "90",
+    executionMode: "file_generation",
+    spotlight: "Best for the guarded code runner and file artifacts.",
+    expectedOutput: "JSON export, markdown briefing, and computed analysis files.",
+  },
+  {
+    id: "visual-draft-kit",
+    title: "Visual Campaign Draft Kit",
+    description:
+      "Turn a brief plus reference images into polished draft visuals for ads, thumbnails, posters, or hero artwork, then review the draft before delivery.",
+    priceAmount: "45",
+    estimatedDeliveryMinutes: "120",
+    executionMode: "hybrid_ai_plus_owner_review",
+    spotlight: "Best for image generation with owner review.",
+    expectedOutput: "Generated image artifacts waiting in the owner review stage.",
+  },
+] as const
 
 function parseBigIntCandidate(value: string | null) {
   if (!value) {
@@ -95,12 +136,34 @@ export function CreateServiceWizard() {
     return createService.warningMessage ?? null
   }, [createService.stage, createService.warningMessage])
 
+  const executionModeDefinition = useMemo(
+    () => getServiceExecutionModeDefinition(formData.executionMode),
+    [formData.executionMode],
+  )
+
   const updateField = (field: keyof CreateServiceFormValues, value: string) => {
     setFormData((current) => ({
       ...current,
       [field]: value,
     }))
     createService.clearFieldError(field)
+  }
+
+  const applyPreset = (preset: ServicePreset) => {
+    setFormData((current) => ({
+      ...current,
+      title: preset.title,
+      description: preset.description,
+      priceAmount: preset.priceAmount,
+      estimatedDeliveryMinutes: preset.estimatedDeliveryMinutes,
+      executionMode: preset.executionMode,
+    }))
+
+    createService.clearFieldError("title")
+    createService.clearFieldError("description")
+    createService.clearFieldError("priceAmount")
+    createService.clearFieldError("estimatedDeliveryMinutes")
+    createService.clearFieldError("executionMode")
   }
 
   if (createService.isSuccess && createService.createdService) {
@@ -286,6 +349,54 @@ export function CreateServiceWizard() {
           </CardHeader>
 
           <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Quick Test Presets</p>
+                <p className="mt-1 text-sm text-white/45">
+                  Load a ready-made service setup for the new live tool runners.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {serviceTestPresets.map((preset) => {
+                  const isSelected =
+                    formData.title === preset.title &&
+                    formData.executionMode === preset.executionMode
+
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        isSelected
+                          ? "border-emerald-500/30 bg-emerald-500/10"
+                          : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-white">{preset.title}</p>
+                        <Badge
+                          variant="outline"
+                          className="border-white/10 bg-black/20 text-white/70"
+                        >
+                          {
+                            getServiceExecutionModeDefinition(preset.executionMode)
+                              .shortLabel
+                          }
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-white/55">
+                        {preset.spotlight}
+                      </p>
+                      <p className="mt-3 text-sm text-white/40">
+                        {preset.expectedOutput}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="agentId">Agent</Label>
               <select
@@ -357,6 +468,32 @@ export function CreateServiceWizard() {
                   field="estimatedDeliveryMinutes"
                   errors={createService.fieldErrors}
                 />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="executionMode">Fulfillment Mode</Label>
+              <select
+                id="executionMode"
+                value={formData.executionMode}
+                onChange={(event) => updateField("executionMode", event.target.value)}
+                className="flex h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none"
+              >
+                {serviceExecutionModeDefinitions.map((mode) => (
+                  <option key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+              <FieldError field="executionMode" errors={createService.fieldErrors} />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                  How this service will run
+                </p>
+                <p className="mt-2 font-semibold text-white">
+                  {executionModeDefinition.label}
+                </p>
+                <p className="mt-2">{executionModeDefinition.description}</p>
               </div>
             </div>
 

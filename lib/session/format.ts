@@ -32,9 +32,15 @@ export function getSessionDerivedStatus(
   now = Date.now(),
 ): SessionApprovalStatus {
   if (!record.expiresAt) {
-    return record.status === "requesting" || record.status === "revoking"
-      ? record.status
-      : "inactive"
+    if (record.status === "requesting" || record.status === "revoking") {
+      return record.status
+    }
+
+    if (record.status === "active" || record.status === "expiring") {
+      return "active"
+    }
+
+    return "inactive"
   }
 
   if (record.status === "requesting" || record.status === "revoking") {
@@ -59,6 +65,10 @@ export function getSessionRemainingMs(
   now = Date.now(),
 ) {
   if (!record.expiresAt) {
+    if (record.status === "active" || record.status === "expiring") {
+      return Number.POSITIVE_INFINITY
+    }
+
     return 0
   }
 
@@ -72,6 +82,10 @@ export function getSessionRemainingMs(
 }
 
 export function formatSessionCountdown(remainingMs: number) {
+  if (!Number.isFinite(remainingMs)) {
+    return "Until revoked"
+  }
+
   if (remainingMs <= 0) {
     return "00:00:00"
   }
@@ -87,6 +101,10 @@ export function formatSessionCountdown(remainingMs: number) {
 }
 
 export function formatSessionRemainingLabel(remainingMs: number) {
+  if (!Number.isFinite(remainingMs)) {
+    return "Until revoked"
+  }
+
   if (remainingMs <= 0) {
     return "Expired"
   }

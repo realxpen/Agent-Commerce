@@ -69,6 +69,7 @@ enum OrderPaymentStatus {
 enum DeliveryStatus {
   PENDING
   IN_PROGRESS
+  AWAITING_REVIEW
   DELIVERED
   FAILED
   CANCELLED
@@ -141,6 +142,7 @@ enum ContractEventStatus {
 
 enum ContractType {
   AGENT_REGISTRY
+  SERVICE_ESCROW
   MARKETPLACE
   TREASURY
   SESSION_APPROVAL
@@ -305,8 +307,10 @@ model Order {
   customerNote         String?
   customerReferences   Json?
   revisionRequests     Json?
+  deliveryVersions     Json?
   deliveryUrl          String?
   deliveryText         String?
+  onchainOrderId       BigInt?            @unique
   paymentReference     String?
   txHash               String?
   expectedPaymentInfo  Json?

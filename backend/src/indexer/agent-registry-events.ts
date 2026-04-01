@@ -1,0 +1,38 @@
+export const agentRegistryEventAbi = [
+  {
+    type: "event",
+    name: "AgentCreated",
+    anonymous: false,
+    inputs: [
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "treasury", type: "address", indexed: true },
+      { name: "name", type: "string", indexed: false },
+      { name: "category", type: "string", indexed: false },
+      { name: "description", type: "string", indexed: false },
+      { name: "initUsername", type: "string", indexed: false },
+      { name: "active", type: "bool", indexed: false },
+      { name: "createdAt", type: "uint64", indexed: false },
+      { name: "updatedAt", type: "uint64", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "ServiceCreated",
+    anonymous: false,
+    inputs: [
+      { name: "serviceId", type: "uint256", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "title", type: "string", indexed: false },
+      { name: "description", type: "string", indexed: false },
+      { name: "price", type: "uint256", indexed: false },
+      { name: "serviceType", type: "uint8", indexed: false },
+      { name: "billingInterval", type: "uint8", indexed: false },
+      { name: "recurringPrice", type: "uint256", indexed: false },
+      { name: "active", type: "bool", indexed: false },
+      { name: "createdAt", type: "uint64", indexed: false },
+      { name: "updatedAt", type: "uint64", indexed: false },
+    ],
+  },
+] as const;

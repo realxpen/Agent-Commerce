@@ -1,4 +1,8 @@
 import { agentCommerceConfig } from "@/lib/appchain/config"
+import {
+  SERVICE_EXECUTION_MODES,
+  type ServiceExecutionMode,
+} from "@/lib/services/execution-mode"
 
 export type CreateServiceFormValues = {
   agentId: string
@@ -6,6 +10,7 @@ export type CreateServiceFormValues = {
   description: string
   priceAmount: string
   estimatedDeliveryMinutes: string
+  executionMode: ServiceExecutionMode
 }
 
 export type CreateServiceFieldErrors = Partial<
@@ -19,6 +24,7 @@ export type CreateServiceSubmission = {
   priceAmount: string
   estimatedDeliveryMinutes: number | null
   payableAmount: bigint
+  executionMode: ServiceExecutionMode
 }
 
 export const initialCreateServiceFormValues: CreateServiceFormValues = {
@@ -27,6 +33,7 @@ export const initialCreateServiceFormValues: CreateServiceFormValues = {
   description: "",
   priceAmount: "",
   estimatedDeliveryMinutes: "60",
+  executionMode: "text_delivery",
 }
 
 const pricePattern = /^\d+(\.\d+)?$/
@@ -79,6 +86,10 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
     }
   }
 
+  if (!SERVICE_EXECUTION_MODES.includes(values.executionMode)) {
+    errors.executionMode = "Choose how this service should be fulfilled."
+  }
+
   if (Object.keys(errors).length > 0) {
     return {
       success: false as const,
@@ -111,6 +122,7 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
         ? Number(normalizedDelivery)
         : null,
       payableAmount,
+      executionMode: values.executionMode,
     } satisfies CreateServiceSubmission,
   }
 }

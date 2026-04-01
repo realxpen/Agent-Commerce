@@ -47,6 +47,21 @@ export type NormalizedContractEvent = {
     recipient: string | null;
     status: PaymentStatus | null;
   };
+  orderDetails: {
+    onchainOrderId: string | null;
+    onchainAgentId: string | null;
+    onchainServiceId: string | null;
+    customer: string | null;
+    actor: string | null;
+    agentTreasury: string | null;
+    feeTreasury: string | null;
+    platformFeeAmount: string | null;
+    agentPayoutAmount: string | null;
+    amountRefunded: string | null;
+    deliveryRef: string | null;
+    previousStatus: string | null;
+    newStatus: string | null;
+  };
 };
 
 function compactJsonObject(
@@ -95,11 +110,36 @@ function buildEventKey(input: {
   return `${input.chainId}:${input.txHash}:${input.eventIndex ?? 0}:${input.eventName}`;
 }
 
+function looksLikeCuid(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[a-z][a-z0-9]{7,}$/i.test(value) &&
+    value.includes("c")
+  );
+}
+
+function pickBackendReference(
+  value: Record<string, unknown>,
+  canonicalKey: "paymentId" | "orderId" | "agentId",
+) {
+  const directValue = value[canonicalKey];
+  if (looksLikeCuid(directValue)) {
+    return directValue;
+  }
+
+  const prefixedValue = value[`backend${canonicalKey.charAt(0).toUpperCase()}${canonicalKey.slice(1)}`];
+  return looksLikeCuid(prefixedValue) ? prefixedValue : null;
+}
+
 export function parseContractEventInput(
   input: IngestContractEventBody,
 ): NormalizedContractEvent {
   const eventName = normalizeEventName(input.eventName);
   const parsedPayload = compactJsonObject(input.parsedPayload as Record<string, unknown>) ?? {};
+  const payload = input.parsedPayload as Record<string, unknown>;
+  const paymentId = pickBackendReference(payload, "paymentId");
+  const orderId = pickBackendReference(payload, "orderId");
+  const agentId = pickBackendReference(payload, "agentId");
 
   return {
     eventKey: buildEventKey({
@@ -120,15 +160,15 @@ export function parseContractEventInput(
     rawPayload: compactJsonObject(input.rawPayload),
     parsedPayload,
     references: {
-      paymentId: input.parsedPayload.paymentId ?? null,
-      orderId: input.parsedPayload.orderId ?? null,
-      agentId: input.parsedPayload.agentId ?? null,
+      paymentId,
+      orderId,
+      agentId,
       paymentReference: input.parsedPayload.paymentReference ?? null,
     },
     paymentDetails: {
-      paymentId: input.parsedPayload.paymentId ?? null,
-      orderId: input.parsedPayload.orderId ?? null,
-      agentId: input.parsedPayload.agentId ?? null,
+      paymentId,
+      orderId,
+      agentId,
       paymentReference: input.parsedPayload.paymentReference ?? null,
       amount: input.parsedPayload.amount ?? null,
       currency: input.parsedPayload.currency ?? null,
@@ -136,6 +176,39 @@ export function parseContractEventInput(
       sender: input.parsedPayload.sender ?? null,
       recipient: input.parsedPayload.recipient ?? null,
       status: input.parsedPayload.status ?? null,
+    },
+    orderDetails: {
+      onchainOrderId:
+        (typeof payload.onchainOrderId === "string" ? payload.onchainOrderId : null) ??
+        (typeof payload.orderId === "string" && !looksLikeCuid(payload.orderId)
+          ? payload.orderId
+          : null),
+      onchainAgentId:
+        (typeof payload.onchainAgentId === "string" ? payload.onchainAgentId : null) ??
+        (typeof payload.agentId === "string" && !looksLikeCuid(payload.agentId)
+          ? payload.agentId
+          : null),
+      onchainServiceId:
+        typeof payload.onchainServiceId === "string" ? payload.onchainServiceId : null,
+      customer:
+        typeof payload.customer === "string"
+          ? payload.customer
+          : typeof payload.sender === "string"
+            ? payload.sender
+            : null,
+      actor: typeof payload.actor === "string" ? payload.actor : null,
+      agentTreasury: typeof payload.agentTreasury === "string" ? payload.agentTreasury : null,
+      feeTreasury: typeof payload.feeTreasury === "string" ? payload.feeTreasury : null,
+      platformFeeAmount:
+        typeof payload.platformFeeAmount === "string" ? payload.platformFeeAmount : null,
+      agentPayoutAmount:
+        typeof payload.agentPayoutAmount === "string" ? payload.agentPayoutAmount : null,
+      amountRefunded:
+        typeof payload.amountRefunded === "string" ? payload.amountRefunded : null,
+      deliveryRef: typeof payload.deliveryRef === "string" ? payload.deliveryRef : null,
+      previousStatus:
+        typeof payload.previousStatus === "string" ? payload.previousStatus : null,
+      newStatus: typeof payload.newStatus === "string" ? payload.newStatus : null,
     },
   };
 }

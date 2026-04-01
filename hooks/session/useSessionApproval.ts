@@ -238,7 +238,7 @@ export function useSessionApproval(options: UseSessionApprovalOptions = {}) {
     }
 
     if (!wallet.isOnExpectedAppchain) {
-      return wallet.openWallet()
+      return wallet.switchNetwork()
     }
 
     if (session.isSessionActive && isExpiring) {

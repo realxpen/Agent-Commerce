@@ -18,6 +18,7 @@ type PublicEnvStatus = {
 type PublicEnv = {
   appchainRpcUrl: string
   appchainChainId: string
+  appchainInterwovenChainId: string
   appchainEvmChainId: number
   agentRegistryAddress: HexAddress
   serviceEscrowAddress: HexAddress
@@ -29,6 +30,7 @@ let cachedPublicEnv: PublicEnv | null = null
 
 const FALLBACK_RPC_URL = "http://127.0.0.1:8545"
 const FALLBACK_CHAIN_ID = 4273954181916632
+const FALLBACK_INTERWOVEN_CHAIN_ID = "agentcommerce-1"
 const FALLBACK_CONTRACT_ADDRESS =
   "0x0000000000000000000000000000000000000000" as HexAddress
 const FALLBACK_API_BASE_URL = "http://127.0.0.1:4000"
@@ -128,6 +130,16 @@ export function getPublicEnv(): PublicEnv {
     issues,
     buckets,
   )
+  const appchainInterwovenChainId = readEnvString(
+    "NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID",
+    process.env.NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID,
+    FALLBACK_INTERWOVEN_CHAIN_ID,
+    [],
+    {
+      missingKeys: [],
+      invalidKeys: [],
+    },
+  )
   const agentRegistryAddress = readHexAddress(
     "NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS",
     process.env.NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS,
@@ -163,6 +175,7 @@ export function getPublicEnv(): PublicEnv {
   cachedPublicEnv = {
     appchainRpcUrl,
     appchainChainId,
+    appchainInterwovenChainId,
     appchainEvmChainId,
     agentRegistryAddress,
     serviceEscrowAddress,

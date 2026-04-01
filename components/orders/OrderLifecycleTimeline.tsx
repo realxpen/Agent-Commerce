@@ -26,10 +26,12 @@ function buildTimelineSteps(input: {
           : "upcoming"
 
   const fulfillmentState: TimelineStep["state"] =
-    input.status === "IN_PROGRESS" || input.deliveryStatus === "IN_PROGRESS"
+    input.deliveryStatus === "AWAITING_REVIEW" ||
+    input.status === "DELIVERED" ||
+    input.status === "COMPLETED"
+      ? "complete"
+      : input.status === "IN_PROGRESS" || input.deliveryStatus === "IN_PROGRESS"
       ? "current"
-      : input.status === "DELIVERED" || input.status === "COMPLETED"
-        ? "complete"
         : input.status === "FAILED" || input.status === "CANCELLED"
           ? "failed"
           : input.status === "PAID"
@@ -37,7 +39,7 @@ function buildTimelineSteps(input: {
             : "upcoming"
 
   const reviewState: TimelineStep["state"] =
-    input.status === "DELIVERED"
+    input.deliveryStatus === "AWAITING_REVIEW" || input.status === "DELIVERED"
       ? "current"
       : input.status === "COMPLETED"
         ? "complete"

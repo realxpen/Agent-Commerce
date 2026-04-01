@@ -57,7 +57,13 @@ function buildNextStepLabel(order: OrderDto) {
   )
 
   if (activeRevision) {
-    return "Revision in progress"
+    return order.deliveryStatus === "AWAITING_REVIEW"
+      ? "Updated delivery is waiting on owner review"
+      : "Revision in progress"
+  }
+
+  if (order.deliveryStatus === "AWAITING_REVIEW") {
+    return "Owner review in progress"
   }
 
   if (order.status === "DELIVERED") {

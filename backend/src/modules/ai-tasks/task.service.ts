@@ -1,9 +1,17 @@
-import { OrderPaymentStatus, Prisma, TaskRunStatus, type PrismaClient } from "@prisma/client";
+import {
+  DeliveryStatus,
+  OrderPaymentStatus,
+  OrderStatus,
+  Prisma,
+  TaskRunStatus,
+  type PrismaClient,
+} from "@prisma/client";
 
 import type { AppQueues } from "../../queues/index.js";
 import { JOB_NAMES } from "../../jobs/index.js";
 import { logger } from "../../lib/logger.js";
 import { createHttpError } from "../../utils/http-error.js";
+import { getServiceExecutionContextFromServiceSnapshot } from "../services/service-execution.js";
 import {
   createTaskRunRecord,
   findActiveTaskRunForTask,
@@ -28,6 +36,7 @@ type TriggerSource =
   | "contract-event"
   | "revision-request"
   | "manual-test"
+  | "owner-resume"
   | "retry";
 
 function toIsoString(value: Date | null) {
@@ -116,6 +125,10 @@ function buildTaskConfig(body?: TriggerTaskProcessingBody): Prisma.InputJsonObje
 }
 
 function buildPromptInput(order: Awaited<ReturnType<typeof findOrderForTaskOrThrow>>, attemptNumber: number) {
+  const executionContext = getServiceExecutionContextFromServiceSnapshot(
+    order.serviceSnapshot,
+  );
+
   return {
     orderId: order.id,
     agentId: order.agentId,
@@ -155,6 +168,9 @@ function buildPromptInput(order: Awaited<ReturnType<typeof findOrderForTaskOrThr
     execution: {
       attemptNumber,
       createdAt: new Date().toISOString(),
+      mode: executionContext.mode,
+      ownerReviewRequired: executionContext.ownerReviewRequired,
+      autoDelivery: executionContext.autoDelivery,
     },
   } satisfies Prisma.InputJsonObject;
 }
@@ -200,7 +216,68 @@ export async function triggerTaskProcessingForOrder(
   },
 ): Promise<TriggerTaskProcessingResultDto> {
   const setup = await db.$transaction(async (tx) => {
-    const order = await findOrderForTaskOrThrow(tx, input.orderId);
+    const existingOrder = await findOrderForTaskOrThrow(tx, input.orderId);
+    const order =
+      input.force &&
+      existingOrder.status === OrderStatus.FAILED &&
+      existingOrder.paymentStatus === OrderPaymentStatus.PAID
+        ? await tx.order.update({
+            where: {
+              id: existingOrder.id,
+            },
+            data: {
+              status: OrderStatus.PAID,
+              deliveryStatus: DeliveryStatus.PENDING,
+              failedAt: null,
+              deliveryText: null,
+            },
+            select: {
+              id: true,
+              agentId: true,
+              agentServiceId: true,
+              status: true,
+              paymentStatus: true,
+              deliveryStatus: true,
+              serviceTitleSnapshot: true,
+              serviceSnapshot: true,
+              customerId: true,
+              customerNote: true,
+              customerReferences: true,
+              revisionRequests: true,
+              deliveryVersions: true,
+              paymentReference: true,
+              txHash: true,
+              quotedPriceAmount: true,
+              finalPaidAmount: true,
+              currency: true,
+              denom: true,
+              createdAt: true,
+              customer: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  email: true,
+                },
+              },
+              agent: {
+                select: {
+                  id: true,
+                  ownerId: true,
+                  name: true,
+                  slug: true,
+                  treasuryAddress: true,
+                },
+              },
+              service: {
+                select: {
+                  id: true,
+                  slug: true,
+                  title: true,
+                },
+              },
+            },
+          })
+        : existingOrder;
 
     if (order.paymentStatus !== OrderPaymentStatus.PAID) {
       throw createHttpError(409, "Tasks can only be triggered for paid orders");

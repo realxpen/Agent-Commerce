@@ -98,7 +98,9 @@ function replaceUrlPort(url: string, port: string) {
 const appchainApiEndpoints = {
   jsonRpc: trimTrailingSlash(env.appchainRpcUrl),
   rpc: replaceUrlPort(env.appchainRpcUrl, "26657"),
-  rest: replaceUrlPort(env.appchainRpcUrl, "1317"),
+  // Use a same-origin proxy so browser-only wallet flows can reach local REST
+  // endpoints even when the rollup REST server does not send permissive CORS headers.
+  rest: "/api/appchain-rest",
   indexer: replaceUrlPort(env.appchainRpcUrl, "8080"),
 }
 
@@ -113,7 +115,8 @@ export const agentCommerceConfig: FrontendSafeAppchainConfig = {
   appchain: {
     displayName: "AgentCommerce Local Rollup",
     chainId: env.appchainEvmChainId,
-    interwovenChainId: env.appchainChainId || String(env.appchainEvmChainId),
+    interwovenChainId:
+      env.appchainInterwovenChainId || String(env.appchainEvmChainId),
     rpcUrl: appchainApiEndpoints.jsonRpc,
     bech32Prefix: APPCHAIN_BECH32_PREFIX,
     nativeDenom: APPCHAIN_NATIVE_DENOM,

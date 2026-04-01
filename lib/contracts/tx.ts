@@ -1,4 +1,7 @@
+import { MsgCallResponse } from "@initia/initia.proto/minievm/evm/v1/tx"
+import type { IndexedTx } from "@cosmjs/stargate"
 import { waitForTransactionReceipt, writeContract } from "@wagmi/core"
+import { encodeFunctionData, type Abi } from "viem"
 import { agentCommerceConfig, wagmiConfig } from "@/lib/appchain/config"
 import { normalizeContractError } from "@/lib/contracts/errors"
 import {
@@ -7,9 +10,11 @@ import {
   createContractSuccess,
 } from "@/lib/contracts/results"
 import type {
+  ContractReceiptLog,
   ContractActionResult,
   ContractAddress,
   ContractExecutionOptions,
+  Hex,
   TransactionReceipt,
 } from "@/lib/contracts/types"
 
@@ -20,6 +25,84 @@ type ExecuteContractWriteParams<TData> = ContractExecutionOptions & {
   args?: readonly unknown[]
   value?: bigint
   parseResult?: (receipt: TransactionReceipt) => TData
+}
+
+function normalizeHexValue(value: string | undefined | null): Hex | null {
+  if (!value) {
+    return null
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (/^0x[0-9a-fA-F]+$/.test(trimmed)) {
+    return trimmed.toLowerCase() as Hex
+  }
+
+  if (/^[0-9a-fA-F]+$/.test(trimmed)) {
+    return `0x${trimmed.toLowerCase()}` as Hex
+  }
+
+  return null
+}
+
+function normalizeContractLog(log: {
+  address: string
+  topics: string[]
+  data: string
+}): ContractReceiptLog | null {
+  const normalizedAddress = normalizeHexValue(log.address)
+  if (!normalizedAddress) {
+    return null
+  }
+
+  const normalizedTopics = log.topics
+    .map((topic) => normalizeHexValue(topic))
+    .filter((topic): topic is Hex => Boolean(topic))
+
+  return {
+    address: normalizedAddress as ContractAddress,
+    topics: normalizedTopics,
+    data: normalizeHexValue(log.data) ?? ("0x" as Hex),
+  }
+}
+
+function normalizeContractTxHash(txHash: string): Hex {
+  const normalized = normalizeHexValue(txHash)
+
+  if (!normalized) {
+    throw new Error("The appchain returned an invalid transaction hash.")
+  }
+
+  return normalized
+}
+
+function buildReceiptFromAutoSignResult(input: {
+  txHash: string
+  indexedTx: IndexedTx
+}): TransactionReceipt {
+  const msgResponse = input.indexedTx.msgResponses.find(
+    (response) =>
+      response.typeUrl === "/minievm.evm.v1.MsgCallResponse" ||
+      response.typeUrl.endsWith(".MsgCallResponse"),
+  )
+
+  const decodedResponse = msgResponse
+    ? MsgCallResponse.decode(msgResponse.value)
+    : null
+
+  const logs =
+    decodedResponse?.logs
+      .map((log) => normalizeContractLog(log))
+      .filter((log): log is ContractReceiptLog => Boolean(log)) ?? []
+
+  return {
+    transactionHash: normalizeContractTxHash(input.txHash),
+    status: input.indexedTx.code === 0 ? "success" : "reverted",
+    logs,
+  }
 }
 
 export async function executeContractWrite<TData = void>(
@@ -44,6 +127,73 @@ export async function executeContractWrite<TData = void>(
 
   try {
     params.onAwaitingWallet?.()
+
+    if (
+      params.autoSignContext?.enabled &&
+      params.autoSignContext.senderAddress
+    ) {
+      let autoSignTxHash: string | undefined
+
+      try {
+        autoSignTxHash = await params.autoSignContext.requestTxSync({
+          chainId: params.autoSignContext.chainId,
+          messages: [
+            {
+              typeUrl: "/minievm.evm.v1.MsgCall",
+              value: {
+                sender: params.autoSignContext.senderAddress,
+                contractAddr: params.address,
+                input: encodeFunctionData({
+                  abi: params.abi as Abi,
+                  functionName: params.functionName,
+                  args: params.args,
+                }),
+                value: params.value?.toString() ?? "0",
+                accessList: [],
+                authList: [],
+              },
+            },
+          ],
+          internal: "agentcommerce-auto-sign",
+        })
+        submittedTxHash = normalizeContractTxHash(autoSignTxHash)
+
+        params.onSubmitting?.(submittedTxHash)
+        params.onSubmitted?.(submittedTxHash)
+        params.onPending?.(submittedTxHash)
+
+        const indexedTx = await params.autoSignContext.waitForTxConfirmation({
+          txHash: autoSignTxHash,
+          chainId: params.autoSignContext.chainId,
+        })
+
+        if (indexedTx.code !== 0) {
+          throw new Error(indexedTx.rawLog || "The appchain rejected this transaction.")
+        }
+
+        const receipt = buildReceiptFromAutoSignResult({
+          txHash: autoSignTxHash,
+          indexedTx,
+        })
+
+        params.onConfirmed?.(submittedTxHash, receipt)
+
+        const data = params.parseResult
+          ? params.parseResult(receipt)
+          : (undefined as TData)
+
+        return createContractSuccess({
+          txHash: submittedTxHash,
+          receipt,
+          chainId: targetChainId,
+          data,
+        })
+      } catch (error) {
+        if (autoSignTxHash) {
+          throw error
+        }
+      }
+    }
 
     const txHash = await writeContract(wagmiConfig, {
       abi: params.abi as never,

@@ -421,6 +421,7 @@ export function useCreateOrder(checkout: CheckoutContext) {
             status: backendOrder.status,
             paymentReference,
             txHash: contractResult.txHash,
+            onchainOrderId: contractResult.data.orderId?.toString(),
           })
 
           backendOrder = syncedOrder.data

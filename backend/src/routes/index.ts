@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { env } from "../config/env.js";
 import { agentRoutes } from "../modules/agents/agents.routes.js";
 import { aiTaskRoutes } from "../modules/ai-tasks/ai-tasks.routes.js";
+import { artifactRoutes } from "../modules/artifacts/artifacts.routes.js";
 import { authRoutes } from "../modules/auth/auth.routes.js";
 import { contractEventRoutes } from "../modules/contract-events/contract-events.routes.js";
 import { dashboardRoutes } from "../modules/dashboard/dashboard.routes.js";
@@ -32,6 +33,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
       await api.register(aiTaskRoutes, {
         prefix: "/ai-tasks",
+      });
+
+      await api.register(artifactRoutes, {
+        prefix: "/artifacts",
       });
 
       await api.register(contractEventRoutes, {

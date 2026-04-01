@@ -31,6 +31,7 @@ function getStatusTone(value: string): "success" | "warning" | "destructive" | "
   if (
     value === "PENDING" ||
     value === "IN_PROGRESS" ||
+    value === "AWAITING_REVIEW" ||
     value === "OPEN" ||
     value === "ADDRESSING"
   ) {

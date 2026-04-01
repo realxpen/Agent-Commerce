@@ -38,6 +38,20 @@ export type OrderRevisionRequest = {
   failureReason: string | null
 }
 
+export type OrderDeliveryVersionSource = "ai_task" | "owner_publish"
+
+export type OrderDeliveryVersion = {
+  id: string
+  versionNumber: number
+  source: OrderDeliveryVersionSource
+  revisionRequestId: string | null
+  taskRunId: string | null
+  publishedByUserId: string | null
+  deliveryUrl: string | null
+  deliveryText: string | null
+  createdAt: string
+}
+
 export type AgentStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED"
 export type AgentPricingModel =
   | "FIXED_PRICE"
@@ -63,6 +77,7 @@ export type OrderPaymentStatus =
 export type DeliveryStatus =
   | "PENDING"
   | "IN_PROGRESS"
+  | "AWAITING_REVIEW"
   | "DELIVERED"
   | "FAILED"
   | "CANCELLED"
@@ -182,9 +197,11 @@ export type OrderDto = {
     denom: string
     quantity: number
   }
+  onchainOrderId: string | null
   customerNote: string | null
   customerReferences: OrderReference[]
   revisionRequests: OrderRevisionRequest[]
+  deliveryVersions: OrderDeliveryVersion[]
   payment: {
     reference: string | null
     txHash: string | null
@@ -457,6 +474,7 @@ export type AttachOrderDeliverableInput = {
 
 export type RequestOrderRevisionInput = {
   note: string
+  customerReferences?: OrderReference[]
 }
 
 export type UpdateOrderStatusInput = {
@@ -464,6 +482,7 @@ export type UpdateOrderStatusInput = {
   finalPaidAmount?: string
   paymentReference?: string
   txHash?: string
+  onchainOrderId?: string
 }
 
 export type ListDashboardStatsParams = {
@@ -488,6 +507,23 @@ export type ListTasksParams = {
   status?: TaskRunStatus
   page?: number
   pageSize?: number
+}
+
+export type TriggerTaskProcessingInput = {
+  force?: boolean
+  provider?: "openai" | "gemini"
+  model?: string
+  promptKind?: "service_fulfillment" | "business_summary" | "order_response"
+  additionalInstructions?: string
+}
+
+export type TriggerTaskProcessingResult = {
+  data: TaskDto
+  meta: {
+    queued: boolean
+    reusedExistingRun: boolean
+    source: string
+  }
 }
 
 export type ApiErrorCode =

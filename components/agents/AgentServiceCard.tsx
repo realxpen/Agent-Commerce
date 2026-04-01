@@ -5,6 +5,10 @@ import { Clock3, Layers3 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { AgentServiceDto } from "@/lib/api/types"
+import {
+  getServiceExecutionMode,
+  getServiceExecutionModeDefinition,
+} from "@/lib/services/execution-mode"
 
 export function AgentServiceCard({
   service,
@@ -21,6 +25,8 @@ export function AgentServiceCard({
   const priceLabel = service.pricing.currency
     ? `${service.pricing.amount} ${service.pricing.currency}`
     : `${service.pricing.amount} ${service.pricing.denom}`
+  const executionMode = getServiceExecutionMode(service.metadata)
+  const executionModeDefinition = getServiceExecutionModeDefinition(executionMode)
 
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
@@ -57,6 +63,14 @@ export function AgentServiceCard({
             {service.estimatedDeliveryMinutes
               ? `${service.estimatedDeliveryMinutes} minutes`
               : "Delivery timing not specified"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-black/20 p-4 sm:col-span-2">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+            Fulfillment
+          </p>
+          <p className="mt-1 text-sm text-white/75">
+            {executionModeDefinition.label}
           </p>
         </div>
       </div>

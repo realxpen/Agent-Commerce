@@ -9,8 +9,10 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 
+import { env } from "../../config/env.js";
 import { serviceFulfillmentOutputJsonSchema } from "../../services/llm/prompts/service-fulfillment.prompt.js";
 import { createHttpError } from "../../utils/http-error.js";
+import { appendOrderDeliveryVersion } from "../orders/delivery-versions.js";
 import { agentTaskSelect, taskRunSelect, type AgentTaskRecord, type TaskRunRecord } from "./ai-tasks.types.js";
 
 export type AiTaskStore = PrismaClient | Prisma.TransactionClient;
@@ -79,6 +81,13 @@ function hasActiveRevisionRequest(value: Prisma.JsonValue | null | undefined) {
   );
 }
 
+function getLatestActiveRevisionRequest(value: Prisma.JsonValue | null | undefined) {
+  return [...toRevisionRequestList(value)]
+    .reverse()
+    .find((revision) => revision.status === "OPEN" || revision.status === "ADDRESSING")
+    ?? null;
+}
+
 function markRevisionRequests(
   value: Prisma.JsonValue | null | undefined,
   nextStatus: RevisionRequestRecord["status"],
@@ -120,6 +129,7 @@ export async function findOrderForTaskOrThrow(db: AiTaskStore, orderId: string) 
       customerNote: true,
       customerReferences: true,
       revisionRequests: true,
+      deliveryVersions: true,
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
@@ -187,7 +197,7 @@ export async function upsertFulfillmentTask(
       type: AgentTaskType.ORDER_FULFILLMENT,
       triggerType: TaskTriggerType.PAYMENT_CONFIRMED,
       status: AgentTaskStatus.ACTIVE,
-      provider: input.provider ?? "openai",
+      provider: input.provider ?? env.LLM_PROVIDER,
       model: input.model ?? null,
       config:
         input.config ??
@@ -205,11 +215,7 @@ export async function upsertFulfillmentTask(
     },
     update: {
       status: AgentTaskStatus.ACTIVE,
-      ...(input.provider
-        ? {
-            provider: input.provider,
-          }
-        : {}),
+      provider: input.provider ?? env.LLM_PROVIDER,
       ...(input.model !== undefined
         ? {
             model: input.model,
@@ -330,6 +336,7 @@ export async function markOrderInProgressForTask(db: AiTaskStore, orderId: strin
       id: true,
       status: true,
       revisionRequests: true,
+      deliveryVersions: true,
     },
   });
 
@@ -365,6 +372,7 @@ export async function markOrderDeliveredFromTask(
     orderId: string;
     deliveryText: string;
     deliveryUrl?: string | null;
+    taskRunId?: string | null;
   },
 ) {
   const existingOrder = await db.order.findUnique({
@@ -374,8 +382,10 @@ export async function markOrderDeliveredFromTask(
     select: {
       id: true,
       revisionRequests: true,
+      deliveryVersions: true,
     },
   });
+  const activeRevision = getLatestActiveRevisionRequest(existingOrder?.revisionRequests);
 
   return db.order.update({
     where: {
@@ -387,6 +397,13 @@ export async function markOrderDeliveredFromTask(
       deliveryText: input.deliveryText,
       deliveryUrl: input.deliveryUrl ?? null,
       deliveredAt: new Date(),
+      deliveryVersions: appendOrderDeliveryVersion(existingOrder?.deliveryVersions, {
+        source: "ai_task",
+        revisionRequestId: activeRevision?.id ?? null,
+        taskRunId: input.taskRunId ?? null,
+        deliveryUrl: input.deliveryUrl ?? null,
+        deliveryText: input.deliveryText,
+      }),
       revisionRequests: markRevisionRequests(existingOrder?.revisionRequests, "ADDRESSED"),
     },
     select: {
@@ -394,6 +411,43 @@ export async function markOrderDeliveredFromTask(
       status: true,
       deliveryStatus: true,
       deliveredAt: true,
+    },
+  });
+}
+
+export async function markOrderAwaitingReviewFromTask(
+  db: AiTaskStore,
+  input: {
+    orderId: string;
+  },
+) {
+  const existingOrder = await db.order.findUnique({
+    where: {
+      id: input.orderId,
+    },
+    select: {
+      id: true,
+      status: true,
+      revisionRequests: true,
+    },
+  });
+
+  const activeRevision = hasActiveRevisionRequest(existingOrder?.revisionRequests);
+
+  return db.order.update({
+    where: {
+      id: input.orderId,
+    },
+    data: {
+      status: activeRevision
+        ? existingOrder?.status ?? OrderStatus.DELIVERED
+        : OrderStatus.IN_PROGRESS,
+      deliveryStatus: DeliveryStatus.AWAITING_REVIEW,
+    },
+    select: {
+      id: true,
+      status: true,
+      deliveryStatus: true,
     },
   });
 }

@@ -31,6 +31,8 @@ import type {
   SyncAutoSignSessionInput,
   TaskDto,
   TransactionDto,
+  TriggerTaskProcessingInput,
+  TriggerTaskProcessingResult,
   UpdateAgentMetadataInput,
   UpdateOrderStatusInput,
   UpdateServiceMetadataInput,
@@ -494,6 +496,12 @@ export class AgentCommerceApiClient {
     })
   }
 
+  getService(serviceId: string, signal?: AbortSignal) {
+    return this.request<DataResponse<AgentServiceDto>>(`/api/v1/services/${serviceId}`, {
+      signal,
+    })
+  }
+
   createService(
     agentId: string,
     input: CreateServiceMetadataInput,
@@ -645,6 +653,21 @@ export class AgentCommerceApiClient {
       query: params,
       signal,
     })
+  }
+
+  triggerOrderTaskProcessing(
+    orderId: string,
+    input: TriggerTaskProcessingInput = {},
+    signal?: AbortSignal,
+  ) {
+    return this.request<TriggerTaskProcessingResult>(
+      `/api/v1/ai-tasks/orders/${orderId}/trigger`,
+      {
+        method: "POST",
+        body: input,
+        signal,
+      },
+    )
   }
 }
 

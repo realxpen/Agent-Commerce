@@ -10,6 +10,10 @@ const decimalValueSchema = z
     message: "Expected a valid decimal value",
   });
 
+const bigintStringSchema = z
+  .union([z.bigint(), z.number().int().nonnegative(), z.string().trim().regex(/^\d+$/)])
+  .transform((value) => String(value));
+
 const blockHeightSchema = z
   .union([
     z.bigint(),
@@ -23,12 +27,28 @@ const parsedPayloadSchema = z
     paymentId: z.string().cuid().optional(),
     orderId: z.string().cuid().optional(),
     agentId: z.string().cuid().optional(),
+    backendPaymentId: z.string().cuid().optional(),
+    backendOrderId: z.string().cuid().optional(),
+    backendAgentId: z.string().cuid().optional(),
+    onchainOrderId: bigintStringSchema.optional(),
+    onchainAgentId: bigintStringSchema.optional(),
+    onchainServiceId: bigintStringSchema.optional(),
     paymentReference: trimmedString.min(2).max(128).optional(),
     amount: decimalValueSchema.optional(),
+    platformFeeAmount: decimalValueSchema.optional(),
+    agentPayoutAmount: decimalValueSchema.optional(),
+    amountRefunded: decimalValueSchema.optional(),
     currency: trimmedString.min(1).max(32).optional(),
     denom: trimmedString.min(1).max(64).optional(),
     sender: trimmedString.min(3).max(128).optional(),
     recipient: trimmedString.min(3).max(128).optional(),
+    customer: trimmedString.min(3).max(128).optional(),
+    actor: trimmedString.min(3).max(128).optional(),
+    agentTreasury: trimmedString.min(3).max(128).optional(),
+    feeTreasury: trimmedString.min(3).max(128).optional(),
+    deliveryRef: trimmedString.min(1).max(2048).optional(),
+    previousStatus: trimmedString.min(1).max(64).optional(),
+    newStatus: trimmedString.min(1).max(64).optional(),
     status: z.nativeEnum(PaymentStatus).optional(),
   })
   .passthrough();

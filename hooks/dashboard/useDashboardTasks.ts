@@ -1,14 +1,16 @@
 "use client"
 
 import { useDeferredValue, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useAgents, useOwnerOrders, useTasks } from "@/hooks/api"
+import { apiQueryKeys } from "@/hooks/api/query-keys"
 import { useBackendAuth } from "@/hooks/auth"
 import {
   useRecoverMissingPayments,
   useRecoverPendingOrderSyncs,
 } from "@/hooks/orders"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
-import { getApiErrorMessage } from "@/lib/api"
+import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
 import type { AgentDto, TaskDto, TaskRunStatus } from "@/lib/api/types"
 
 export type DashboardTaskLogTone = "info" | "success" | "warning" | "error"
@@ -153,9 +155,10 @@ function normalizeTaskErrorMessage(message: string) {
   if (
     normalized.includes("no remaining quota") ||
     normalized.includes("insufficient_quota") ||
-    normalized.includes("exceeded your current quota")
+    normalized.includes("exceeded your current quota") ||
+    normalized.includes("resource exhausted")
   ) {
-    return "OpenAI billing quota is exhausted. Customer payment is still secured, but automated fulfillment cannot continue until billing is restored or the order is resumed manually."
+    return "The configured AI provider has no remaining quota. Customer payment is still secured, but automated fulfillment cannot continue until billing is restored or the order is resumed manually."
   }
 
   return message
@@ -325,6 +328,7 @@ function formatAmountLabel(task: TaskDto) {
 }
 
 export function useDashboardTasks() {
+  const queryClient = useQueryClient()
   const wallet = useWalletConnectionFlow()
   const auth = useBackendAuth()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -333,6 +337,9 @@ export function useDashboardTasks() {
   const [dateRange, setDateRange] = useState<DashboardTaskFilterRange>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null)
+  const [resumeWarning, setResumeWarning] = useState<string | null>(null)
+  const [resumingOrderId, setResumingOrderId] = useState<string | null>(null)
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase())
 
   const queriesEnabled = wallet.isConnected && auth.isAuthenticated
@@ -471,6 +478,53 @@ export function useDashboardTasks() {
     ])
   }
 
+  const canResumeTask = (task: DashboardTaskView | null) =>
+    Boolean(
+      task?.orderId &&
+        (task.status === "FAILED" ||
+          task.status === "TIMED_OUT" ||
+          task.status === "CANCELED"),
+    )
+
+  const resumeTask = async (task: DashboardTaskView | null) => {
+    if (!task?.orderId) {
+      setResumeWarning("This task is not linked to a resumable order yet.")
+      return null
+    }
+
+    setResumeNotice(null)
+    setResumeWarning(null)
+
+    try {
+      setResumingOrderId(task.orderId)
+      const result = await agentCommerceApi.triggerOrderTaskProcessing(task.orderId, {
+        force: true,
+      })
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: apiQueryKeys.tasks() }),
+        queryClient.invalidateQueries({ queryKey: ["api", "tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "transactions"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "dashboard-stats"] }),
+      ])
+      await refetchAll()
+      setSelectedTaskId(result.data.id)
+      setResumeNotice(
+        result.meta.reusedExistingRun
+          ? "Fulfillment is already queued or running for this order."
+          : "AgentCommerce queued a fresh fulfillment run for this paid order.",
+      )
+
+      return result
+    } catch (error) {
+      setResumeWarning(getApiErrorMessage(error))
+      return null
+    } finally {
+      setResumingOrderId(null)
+    }
+  }
+
   return {
     wallet,
     auth,
@@ -506,6 +560,11 @@ export function useDashboardTasks() {
     isError: Boolean(error),
     error,
     errorMessage,
+    resumeNotice,
+    resumeWarning,
+    resumingOrderId,
+    canResumeTask,
+    resumeTask,
     recoveryNotice: [
       pendingOrderSyncRecovery.notice,
       paymentRecovery.notice,

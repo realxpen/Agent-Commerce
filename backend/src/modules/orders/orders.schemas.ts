@@ -10,6 +10,10 @@ const decimalValueSchema = z
     message: "Expected a valid decimal value",
   });
 
+const bigintValueSchema = z
+  .union([z.bigint(), z.number().int().nonnegative(), z.string().trim().regex(/^\d+$/)])
+  .transform((value) => BigInt(value));
+
 const expectedPaymentSchema = z.object({
   chainId: trimmedString.min(1).max(64),
   amount: decimalValueSchema.optional(),
@@ -74,6 +78,7 @@ export const updateOrderStatusBodySchema = z.object({
   finalPaidAmount: decimalValueSchema.optional(),
   paymentReference: trimmedString.min(2).max(128).optional(),
   txHash: trimmedString.min(3).max(256).optional(),
+  onchainOrderId: bigintValueSchema.optional(),
 });
 
 export const attachDeliverableBodySchema = z
@@ -92,6 +97,7 @@ export const attachDeliverableBodySchema = z
 
 export const requestOrderRevisionBodySchema = z.object({
   note: trimmedString.min(1).max(4000),
+  customerReferences: z.array(orderReferenceSchema).max(8).optional(),
 });
 
 export type CreateOrderBody = z.infer<typeof createOrderBodySchema>;

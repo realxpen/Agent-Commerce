@@ -11,6 +11,7 @@ import type {
 export const apiQueryKeys = {
   agents: (params: ListAgentsParams = {}) => ["api", "agents", params] as const,
   agent: (agentId: string) => ["api", "agents", agentId] as const,
+  service: (serviceId: string) => ["api", "services", serviceId] as const,
   services: (params: ListServicesParams = {}) => ["api", "services", params] as const,
   order: (orderId: string) => ["api", "orders", orderId] as const,
   customerOrders: (

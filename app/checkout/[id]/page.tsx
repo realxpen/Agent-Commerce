@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
 import { Lock } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { WalletActionButton } from "@/components/guards"
 import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
 import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
@@ -13,9 +13,14 @@ import { OrderSuccessConfirmation } from "@/components/orders/OrderSuccessConfir
 import { TransactionStatusCard } from "@/components/orders/TransactionStatusCard"
 import { useSession } from "@/components/providers/SessionProvider"
 import { SessionApprovalCard } from "@/components/session"
+import { useService } from "@/hooks/api"
 import { useCreateOrder, useOrderReferenceUploads } from "@/hooks/orders"
 import type { OrderReference } from "@/lib/api/types"
-import { parseCheckoutContext } from "@/lib/orders/checkout"
+import {
+  hydrateCheckoutContextFromService,
+  parseCheckoutContext,
+} from "@/lib/orders/checkout"
+import { buildSampleOrderBriefs } from "@/lib/orders/sample-order-briefs"
 
 export default function CheckoutPage() {
   const params = useParams<{ id: string }>()
@@ -24,10 +29,23 @@ export default function CheckoutPage() {
   const [customerNote, setCustomerNote] = useState("")
   const [customerReferences, setCustomerReferences] = useState<OrderReference[]>([])
 
-  const checkout = parseCheckoutContext({
+  const checkoutBase = parseCheckoutContext({
     serviceId: params.id,
     searchParams,
   })
+  const serviceQuery = useService(params.id)
+  const checkout = hydrateCheckoutContextFromService({
+    checkout: checkoutBase,
+    service: serviceQuery.data?.data,
+  })
+  const sampleBriefs = useMemo(
+    () =>
+      buildSampleOrderBriefs({
+        checkout,
+        service: serviceQuery.data?.data,
+      }),
+    [checkout, serviceQuery.data?.data],
+  )
   const createOrder = useCreateOrder(checkout)
   const referenceUploads = useOrderReferenceUploads()
 
@@ -127,6 +145,8 @@ export default function CheckoutPage() {
                       ...uploadedReferences,
                     ])
                   }}
+                  sampleBriefs={sampleBriefs}
+                  onApplySampleBrief={setCustomerNote}
                 />
 
                 <div className="space-y-5">
@@ -160,7 +180,7 @@ export default function CheckoutPage() {
                       <WalletActionButton
                         className="w-full h-14 text-lg font-bold"
                         connectLabel="Connect Wallet to Pay"
-                        disabled={!createOrder.canSubmit}
+                        disabled={!createOrder.canSubmit || serviceQuery.isLoading}
                         onAuthorizedAction={() =>
                           createOrder.submit({ customerNote, customerReferences })
                         }
@@ -171,7 +191,9 @@ export default function CheckoutPage() {
                         <p className="text-sm text-amber-200">
                           {!createOrder.wallet.isConfigured
                             ? createOrder.wallet.networkMessage.description
-                            : "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."}
+                            : serviceQuery.isLoading
+                              ? "AgentCommerce is loading the live checkout metadata for this service."
+                              : "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."}
                         </p>
                       ) : null}
                     </div>

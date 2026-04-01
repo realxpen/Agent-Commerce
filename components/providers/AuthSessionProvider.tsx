@@ -397,7 +397,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       )
       const challenge = await agentCommerceApi.createAuthChallenge({
         address: wallet.initiaAddress,
-        chainId: agentCommerceConfig.appchain.interwovenChainId,
+        chainId: String(agentCommerceConfig.appchain.chainId),
         algo: detectedAlgo,
       })
 
@@ -425,6 +425,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
           persistSession(storageKey, verified.data)
         }
 
+        configureAgentCommerceApiAuth({
+          accessToken: verified.data.accessToken,
+        })
         setSession(verified.data)
         setCurrentSession({
           user: verified.data.user,
@@ -474,6 +477,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         persistSession(storageKey, verified.data)
       }
 
+      configureAgentCommerceApiAuth({
+        accessToken: verified.data.accessToken,
+      })
       setSession(verified.data)
       setCurrentSession({
         user: verified.data.user,

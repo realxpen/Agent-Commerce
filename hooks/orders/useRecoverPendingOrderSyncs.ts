@@ -99,6 +99,13 @@ export function useRecoverPendingOrderSyncs(options: { enabled: boolean }) {
             })
           }
 
+          await agentCommerceApi.updateOrderStatus(backendOrderId, {
+            status: "PENDING",
+            paymentReference: record.paymentReference,
+            txHash: record.paymentInput.txHash ?? record.txHash,
+            onchainOrderId: record.onchainOrderId ?? undefined,
+          })
+
           await agentCommerceApi.createPaymentRecord({
             orderId: backendOrderId,
             ...record.paymentInput,

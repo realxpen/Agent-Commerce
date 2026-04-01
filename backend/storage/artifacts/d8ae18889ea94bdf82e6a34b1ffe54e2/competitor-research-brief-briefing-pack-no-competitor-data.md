@@ -1,0 +1,9 @@
+# Competitor Research Brief Briefing Pack for AgentCommerce
+
+## Order ID: cmndwnzzg000djcc4lxsdlayl
+
+## Customer Note:
+Research the competitors and create a concise competitor brief for AgentCommerce. I want a summary of their positioning, messaging, strengths, weaknesses, and what opportunities they leave open in the market. Please organize the output clearly so it is easy to compare them side by side. The final brief should help us decide how to position AgentCommerce more clearly for founders and online businesses.
+
+## Customer References:
+No customer references (e.g., competitor URLs, documents) were provided for this order. Competitor data is required to complete the analysis.

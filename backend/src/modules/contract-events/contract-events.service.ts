@@ -52,9 +52,9 @@ export async function ingestContractEvent(
   const parsedEvent = parseContractEventInput(input);
   const result = await indexContractEvent(db, parsedEvent);
 
-  if (result.processed && result.paymentStatus === "CONFIRMED" && result.paymentOrderId) {
+  if (result.processed && result.shouldTriggerTaskProcessing && result.orderId) {
     await maybeTriggerTaskProcessingForOrder(db, queues, {
-      orderId: result.paymentOrderId,
+      orderId: result.orderId,
       source: "contract-event",
     });
   }

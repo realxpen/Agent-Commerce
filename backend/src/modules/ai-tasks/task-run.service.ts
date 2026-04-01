@@ -6,6 +6,7 @@ import { executeTaskRunWithLlm } from "../../services/ai-task-executor.service.j
 import { TaskExecutionError } from "../../services/llm/llm.errors.js";
 import {
   findTaskRunOrThrow,
+  markOrderAwaitingReviewFromTask,
   markOrderDeliveredFromTask,
   markOrderFailedForTask,
   markOrderInProgressForTask,
@@ -54,12 +55,28 @@ function isQuotaExceededError(error: unknown) {
       ? (response.error as Record<string, unknown>)
       : null;
 
-  return errorObject?.code === "insufficient_quota";
+  if (errorObject?.code === "insufficient_quota") {
+    return true;
+  }
+
+  const message =
+    typeof errorObject?.message === "string"
+      ? errorObject.message.toLowerCase()
+      : typeof error.message === "string"
+        ? error.message.toLowerCase()
+        : "";
+
+  return (
+    message.includes("insufficient_quota") ||
+    message.includes("remaining quota") ||
+    message.includes("quota") ||
+    message.includes("resource exhausted")
+  );
 }
 
 function formatFailureReason(error: unknown) {
   if (isQuotaExceededError(error)) {
-    return "Automated fulfillment is paused because the configured OpenAI account has no remaining quota. Customer payment is still secured, but the agent owner needs to restore billing or resume fulfillment manually.";
+    return "Automated fulfillment is paused because the configured AI provider has no remaining quota. Customer payment is still secured, but the agent owner needs to restore billing or resume fulfillment manually.";
   }
 
   return error instanceof Error ? error.message : "Unknown task execution failure";
@@ -126,6 +143,11 @@ export async function processTaskRun(
           orderId: updatedRun.orderId,
           deliveryText: executionResult.delivery.deliveryText,
           deliveryUrl: executionResult.delivery.deliveryUrl,
+          taskRunId: updatedRun.id,
+        });
+      } else if (updatedRun.orderId) {
+        await markOrderAwaitingReviewFromTask(tx, {
+          orderId: updatedRun.orderId,
         });
       }
 
@@ -141,6 +163,8 @@ export async function processTaskRun(
         promptKind: executionResult.promptKind,
         provider: executionResult.provider,
         model: executionResult.model,
+        executionMode: executionResult.executionMode,
+        ownerReviewRequired: executionResult.ownerReviewRequired,
       },
       "Task run completed successfully",
     );

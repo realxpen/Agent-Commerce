@@ -16,6 +16,7 @@ type OrderPaymentContext = {
   orderId: string;
   status: PaymentStatus;
   amount?: Prisma.Decimal;
+  onchainOrderId?: bigint | null;
   paymentReference?: string | null;
   txHash?: string | null;
   failureReason?: string | null;
@@ -74,6 +75,7 @@ export async function findOrderForPaymentCreate(
       agentId: true,
       status: true,
       paymentStatus: true,
+      onchainOrderId: true,
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
@@ -103,6 +105,67 @@ export async function findOrderByPaymentReference(
       agentId: true,
       status: true,
       paymentStatus: true,
+      onchainOrderId: true,
+      paymentReference: true,
+      txHash: true,
+      quotedPriceAmount: true,
+      finalPaidAmount: true,
+      denom: true,
+      currency: true,
+      agent: {
+        select: {
+          id: true,
+          treasuryAddress: true,
+        },
+      },
+    },
+  });
+}
+
+export async function findOrderByTxHash(
+  db: PaymentStore,
+  txHash: string,
+) {
+  return db.order.findFirst({
+    where: {
+      txHash,
+    },
+    select: {
+      id: true,
+      agentId: true,
+      status: true,
+      paymentStatus: true,
+      onchainOrderId: true,
+      paymentReference: true,
+      txHash: true,
+      quotedPriceAmount: true,
+      finalPaidAmount: true,
+      denom: true,
+      currency: true,
+      agent: {
+        select: {
+          id: true,
+          treasuryAddress: true,
+        },
+      },
+    },
+  });
+}
+
+export async function findOrderByOnchainOrderId(
+  db: PaymentStore,
+  onchainOrderId: bigint,
+) {
+  return db.order.findFirst({
+    where: {
+      onchainOrderId,
+    },
+    select: {
+      id: true,
+      agentId: true,
+      status: true,
+      paymentStatus: true,
+      onchainOrderId: true,
       paymentReference: true,
       txHash: true,
       quotedPriceAmount: true,
@@ -251,6 +314,10 @@ export async function syncOrderFromPaymentStatus(
     data.paymentReference = context.paymentReference;
   }
 
+  if (context.onchainOrderId !== undefined) {
+    data.onchainOrderId = context.onchainOrderId;
+  }
+
   if (context.txHash !== undefined) {
     data.txHash = context.txHash;
   }
@@ -302,6 +369,7 @@ export async function syncOrderFromPaymentStatus(
       paidAt: true,
       failedAt: true,
       paymentReference: true,
+      onchainOrderId: true,
       txHash: true,
       finalPaidAmount: true,
     },

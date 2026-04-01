@@ -1,6 +1,9 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
+import { useInterwovenKit } from "@initia/interwovenkit-react"
+import { useSession } from "@/components/providers/SessionProvider"
+import { agentCommerceConfig } from "@/lib/appchain/config"
 import type {
   ContractActionResult,
   ContractActionStatus,
@@ -9,6 +12,7 @@ import type {
   NormalizedContractError,
 } from "@/lib/contracts/types"
 import { useTransactionLifecycle } from "@/hooks/transactions"
+import { useWalletAccount } from "@/hooks/wallet"
 
 type ContractExecutor<TInput, TData> = (
   input: TInput,
@@ -18,10 +22,33 @@ type ContractExecutor<TInput, TData> = (
 export function useContractAction<TInput, TData>(
   executor: ContractExecutor<TInput, TData>,
 ) {
+  const session = useSession()
+  const wallet = useWalletAccount()
+  const { autoSign, requestTxSync, waitForTxConfirmation } = useInterwovenKit()
   const [status, setStatus] = useState<ContractActionStatus>("idle")
   const [result, setResult] = useState<ContractActionResult<TData> | null>(null)
   const [error, setError] = useState<NormalizedContractError | null>(null)
   const lifecycle = useTransactionLifecycle()
+  const autoSignContext = useMemo(() => {
+    const interwovenChainId = agentCommerceConfig.appchain.interwovenChainId
+
+    return {
+      enabled:
+        session.isSessionActive &&
+        Boolean(wallet.initiaAddress) &&
+        Boolean(autoSign.isEnabledByChain[interwovenChainId]),
+      chainId: interwovenChainId,
+      senderAddress: wallet.initiaAddress ?? null,
+      requestTxSync,
+      waitForTxConfirmation,
+    } satisfies ContractExecutionOptions["autoSignContext"]
+  }, [
+    autoSign.isEnabledByChain,
+    requestTxSync,
+    session.isSessionActive,
+    waitForTxConfirmation,
+    wallet.initiaAddress,
+  ])
 
   const execute = useCallback(
     async (input: TInput, options?: ContractExecutionOptions) => {
@@ -33,6 +60,7 @@ export function useContractAction<TInput, TData>(
 
       const nextResult = await executor(input, {
         ...options,
+        autoSignContext,
         onAwaitingWallet: () => {
           lifecycle.setAwaitingWallet()
           setStatus("awaiting_wallet")
@@ -89,7 +117,7 @@ export function useContractAction<TInput, TData>(
       setStatus("failed")
       return nextResult
     },
-    [executor, lifecycle],
+    [autoSignContext, executor, lifecycle],
   )
 
   const reset = useCallback(() => {

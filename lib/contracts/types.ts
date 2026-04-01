@@ -1,3 +1,6 @@
+import type { EncodeObject } from "@cosmjs/proto-signing"
+import type { IndexedTx } from "@cosmjs/stargate"
+
 export type ContractAddress = `0x${string}`
 export type Hex = `0x${string}`
 
@@ -41,6 +44,35 @@ export type NormalizedContractError = {
   details?: string
 }
 
+export type AutoSignCoin = {
+  denom: string
+  amount: string
+}
+
+export type AutoSignTxRequest = {
+  messages: EncodeObject[]
+  memo?: string
+  chainId?: string
+  gas?: number
+  gasAdjustment?: number
+  gasPrices?: AutoSignCoin[] | null
+  spendCoins?: AutoSignCoin[]
+  internal?: boolean | string | number
+}
+
+export type AutoSignExecutionContext = {
+  enabled: boolean
+  chainId: string
+  senderAddress: string | null
+  requestTxSync: (txRequest: AutoSignTxRequest) => Promise<string>
+  waitForTxConfirmation: (params: {
+    txHash: string
+    chainId?: string
+    timeoutMs?: number
+    intervalMs?: number
+  }) => Promise<IndexedTx>
+}
+
 export type ContractExecutionOptions = {
   onAwaitingWallet?: () => void
   onSubmitting?: (txHash: Hex) => void
@@ -48,6 +80,7 @@ export type ContractExecutionOptions = {
   onPending?: (txHash: Hex) => void
   onConfirmed?: (txHash: Hex, receipt: TransactionReceipt) => void
   onFailed?: (error: NormalizedContractError, txHash?: Hex) => void
+  autoSignContext?: AutoSignExecutionContext | null
 }
 
 export type ContractActionSuccess<TData> = {

@@ -198,6 +198,22 @@ export default function TasksPage() {
             />
           ) : null}
 
+          {tasks.resumeNotice ? (
+            <StatusNoticeCard
+              tone="success"
+              title="Fulfillment resumed"
+              description={tasks.resumeNotice}
+            />
+          ) : null}
+
+          {tasks.resumeWarning ? (
+            <StatusNoticeCard
+              tone="warning"
+              title="Could not resume fulfillment"
+              description={tasks.resumeWarning}
+            />
+          ) : null}
+
           {tasks.isError && tasks.errorMessage ? (
             <StatusNoticeCard
               tone="danger"
@@ -507,6 +523,23 @@ export default function TasksPage() {
               >
                 Close
               </Button>
+              {tasks.canResumeTask(tasks.selectedTask) ? (
+                <Button
+                  variant="outline"
+                  className="border-indigo-500/30 bg-indigo-500/10 text-indigo-100 hover:bg-indigo-500/20"
+                  disabled={
+                    !tasks.selectedTask?.orderId ||
+                    tasks.resumingOrderId === tasks.selectedTask.orderId
+                  }
+                  onClick={() => void tasks.resumeTask(tasks.selectedTask)}
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  {tasks.selectedTask?.orderId &&
+                  tasks.resumingOrderId === tasks.selectedTask.orderId
+                    ? "Resuming..."
+                    : "Resume Fulfillment"}
+                </Button>
+              ) : null}
               {tasks.selectedTask?.orderId ? (
                 <Button asChild className="bg-indigo-600 hover:bg-indigo-700">
                   <Link href={`/orders/${tasks.selectedTask.orderId}?role=agent_owner`}>

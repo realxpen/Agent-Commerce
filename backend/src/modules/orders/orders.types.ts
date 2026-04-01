@@ -23,8 +23,10 @@ export const orderDtoSelect = {
   customerNote: true,
   customerReferences: true,
   revisionRequests: true,
+  deliveryVersions: true,
   deliveryUrl: true,
   deliveryText: true,
+  onchainOrderId: true,
   paymentReference: true,
   txHash: true,
   expectedPaymentInfo: true,
@@ -97,6 +99,7 @@ export type OrderDto = {
     denom: string;
     quantity: number;
   };
+  onchainOrderId: string | null;
   customerNote: string | null;
   customerReferences: Array<{
     type: "image" | "video" | "audio" | "document" | "link";
@@ -119,6 +122,17 @@ export type OrderDto = {
     updatedAt: string;
     resolvedAt: string | null;
     failureReason: string | null;
+  }>;
+  deliveryVersions: Array<{
+    id: string;
+    versionNumber: number;
+    source: "ai_task" | "owner_publish";
+    revisionRequestId: string | null;
+    taskRunId: string | null;
+    publishedByUserId: string | null;
+    deliveryUrl: string | null;
+    deliveryText: string | null;
+    createdAt: string;
   }>;
   payment: {
     reference: string | null;

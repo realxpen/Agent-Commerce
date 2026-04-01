@@ -1,5 +1,10 @@
 import { env } from "../config/env.js";
 import { TaskExecutionError } from "./llm/llm.errors.js";
+import {
+  bufferToGeminiFilePart,
+  callGeminiGenerateContent,
+  extractGeminiResponseOutputText,
+} from "./llm/providers/gemini.shared.js";
 
 const SUPPORTED_TRANSCRIPTION_CONTENT_TYPES = new Set([
   "audio/flac",
@@ -48,18 +53,7 @@ function extractResponseErrorMessage(body: unknown) {
   );
 }
 
-export function supportsMediaTranscription(fileName: string, contentType: string | null) {
-  const extension = fileName.includes(".")
-    ? fileName.slice(fileName.lastIndexOf(".")).toLowerCase()
-    : "";
-
-  return (
-    (contentType ? SUPPORTED_TRANSCRIPTION_CONTENT_TYPES.has(contentType.toLowerCase()) : false) ||
-    SUPPORTED_TRANSCRIPTION_EXTENSIONS.has(extension)
-  );
-}
-
-export async function transcribeMediaBuffer(input: {
+async function transcribeWithOpenAi(input: {
   buffer: Buffer;
   fileName: string;
   contentType: string | null;
@@ -132,4 +126,83 @@ export async function transcribeMediaBuffer(input: {
   }
 
   return text;
+}
+
+async function transcribeWithGemini(input: {
+  buffer: Buffer;
+  fileName: string;
+  contentType: string | null;
+}) {
+  if (!env.GEMINI_API_KEY) {
+    throw new TaskExecutionError(
+      "provider_not_configured",
+      "GEMINI_API_KEY is not configured for media transcription",
+    );
+  }
+
+  const responseBody = await callGeminiGenerateContent({
+    model: env.GEMINI_TRANSCRIPTION_MODEL,
+    failureMessage: "Gemini transcription request failed before a response was received",
+    body: {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                "Transcribe this media faithfully.",
+                "Return plain text only.",
+                "Do not summarize or add commentary.",
+                "If there is no clear speech or readable on-screen text, say 'No transcribable speech or visible text detected.'",
+              ].join(" "),
+            },
+            await bufferToGeminiFilePart({
+              fileName: input.fileName,
+              mimeType: input.contentType ?? "application/octet-stream",
+              buffer: input.buffer,
+            }),
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "text/plain",
+      },
+    },
+  });
+
+  const text = extractGeminiResponseOutputText(responseBody)?.trim() ?? null;
+  if (!text) {
+    throw new TaskExecutionError(
+      "malformed_output",
+      "Gemini transcription response did not include text",
+      {
+        response: responseBody,
+      },
+    );
+  }
+
+  return text;
+}
+
+export function supportsMediaTranscription(fileName: string, contentType: string | null) {
+  const extension = fileName.includes(".")
+    ? fileName.slice(fileName.lastIndexOf(".")).toLowerCase()
+    : "";
+
+  return (
+    (contentType ? SUPPORTED_TRANSCRIPTION_CONTENT_TYPES.has(contentType.toLowerCase()) : false) ||
+    SUPPORTED_TRANSCRIPTION_EXTENSIONS.has(extension)
+  );
+}
+
+export async function transcribeMediaBuffer(input: {
+  buffer: Buffer;
+  fileName: string;
+  contentType: string | null;
+}) {
+  if (env.LLM_PROVIDER === "gemini") {
+    return transcribeWithGemini(input);
+  }
+
+  return transcribeWithOpenAi(input);
 }

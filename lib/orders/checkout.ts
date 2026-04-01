@@ -187,6 +187,67 @@ export function parseCheckoutContext(options: {
   } satisfies CheckoutContext
 }
 
+function isMeaningfulText(value: string | null | undefined, fallback?: string) {
+  if (!value) {
+    return false
+  }
+
+  if (fallback && value === fallback) {
+    return false
+  }
+
+  return value.trim().length > 0
+}
+
+export function hydrateCheckoutContextFromService(options: {
+  checkout: CheckoutContext
+  service: AgentServiceDto | null | undefined
+}) {
+  const { checkout, service } = options
+
+  if (!service) {
+    return checkout
+  }
+
+  const { onchainAgentId, onchainServiceId, payableAmount } =
+    getCheckoutOnchainReferences(service.metadata)
+
+  return {
+    ...checkout,
+    backendAgentId:
+      checkout.backendAgentId || service.agentId || service.agent?.id || "",
+    agentName: isMeaningfulText(checkout.agentName, "Agent")
+      ? checkout.agentName
+      : service.agent?.name ?? checkout.agentName,
+    agentSlug: checkout.agentSlug || service.agent?.slug || "",
+    serviceTitle: isMeaningfulText(checkout.serviceTitle, "Service")
+      ? checkout.serviceTitle
+      : service.title,
+    serviceDescription: checkout.serviceDescription ?? service.description,
+    currency: checkout.currency ?? service.pricing.currency ?? null,
+    denom:
+      isMeaningfulText(checkout.denom)
+        ? checkout.denom
+        : service.pricing.denom,
+    displayAmount: isMeaningfulText(checkout.displayAmount, "0")
+      ? checkout.displayAmount
+      : service.pricing.amount,
+    estimatedDeliveryMinutes:
+      checkout.estimatedDeliveryMinutes ?? service.estimatedDeliveryMinutes,
+    treasuryAddress:
+      checkout.treasuryAddress || service.agent?.treasuryAddress || "",
+    onchainAgentId: checkout.onchainAgentId ?? onchainAgentId,
+    onchainServiceId: checkout.onchainServiceId ?? onchainServiceId,
+    payableAmount:
+      checkout.payableAmount ??
+      payableAmount ??
+      parseDecimalToBaseUnits(
+        service.pricing.amount,
+        agentCommerceConfig.appchain.nativeCurrency.decimals,
+      ),
+  } satisfies CheckoutContext
+}
+
 export function buildOrderDetailsHref(options: {
   orderId: string
   txHash: string

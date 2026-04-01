@@ -23,6 +23,7 @@ import {
 import { getAgentOnchainReferences } from "@/lib/agents/onchain"
 import { agentCommerceConfig } from "@/lib/appchain/config"
 import { createService as createServiceOnChain } from "@/lib/contracts/agent-registry-client"
+import { buildServiceFulfillmentMetadata } from "@/lib/services/execution-mode"
 import { buildTransactionState } from "@/lib/transactions/messages"
 
 export type CreateServiceFlowStage =
@@ -330,6 +331,9 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
           estimatedDeliveryMinutes:
             validation.data.estimatedDeliveryMinutes ?? undefined,
           metadata: {
+            fulfillment: buildServiceFulfillmentMetadata(
+              validation.data.executionMode,
+            ),
             onchain: {
               agentId: onchainAgentId.toString(),
               chainId: agentCommerceConfig.appchain.interwovenChainId,
@@ -386,6 +390,9 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
                 !Array.isArray(backendService.metadata)
                   ? backendService.metadata
                   : {}),
+                fulfillment: buildServiceFulfillmentMetadata(
+                  validation.data.executionMode,
+                ),
                 onchain: {
                   agentId: onchainAgentId.toString(),
                   serviceId: contractResult.data.serviceId?.toString() ?? null,

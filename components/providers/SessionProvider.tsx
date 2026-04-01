@@ -217,8 +217,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     sdkGranteeRef.current = sdkGrantee
   }, [sdkEnabled, sdkExpiresAt, sdkGrantee])
 
-  const refreshBackendSession = useCallback(async () => {
-    if (!auth.isAuthenticated || !walletAddress) {
+  const refreshBackendSession = useCallback(async (options?: { skipAuthGate?: boolean }) => {
+    if ((!auth.isAuthenticated && !options?.skipAuthGate) || !walletAddress) {
       setBackendRecord(null)
       setBackendSyncStatus("idle")
       return null
@@ -238,8 +238,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [auth.isAuthenticated, chainId, walletAddress])
 
   const syncBackendSession = useCallback(
-    async (input?: SessionApprovalRequestInput) => {
-      if (!auth.isAuthenticated || !walletAddress) {
+    async (
+      input?: SessionApprovalRequestInput,
+      options?: { skipAuthGate?: boolean },
+    ) => {
+      if ((!auth.isAuthenticated && !options?.skipAuthGate) || !walletAddress) {
         setBackendSyncStatus("pending")
         return null
       }
@@ -273,8 +276,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [auth.isAuthenticated, chainId, walletAddress],
   )
 
-  const revokeBackendSession = useCallback(async () => {
-    if (!auth.isAuthenticated) {
+  const revokeBackendSession = useCallback(async (options?: { skipAuthGate?: boolean }) => {
+    if (!auth.isAuthenticated && !options?.skipAuthGate) {
       setBackendRecord(null)
       setBackendSyncStatus("idle")
       return null
@@ -396,7 +399,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
 
         await autoSign.enable(chainId)
-        const syncedRecord = await syncBackendSession(input)
+        const syncedRecord = await syncBackendSession(input, {
+          skipAuthGate: true,
+        })
 
         return buildSessionRecord({
           walletAddress,

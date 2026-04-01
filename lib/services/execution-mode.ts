@@ -1,5 +1,3 @@
-"use client"
-
 import type { JsonValue } from "@/lib/api/types"
 
 export const SERVICE_EXECUTION_MODES = [

@@ -256,7 +256,7 @@ export function useDashboardOverview() {
     {
       ownerId: auth.session?.user.id,
       page: 1,
-      pageSize: 6,
+      pageSize: 12,
     },
     {
       enabled: queriesEnabled,
@@ -273,7 +273,7 @@ export function useDashboardOverview() {
   const transactionsQuery = useTransactions(
     {
       page: 1,
-      pageSize: 5,
+      pageSize: 8,
     },
     {
       enabled: queriesEnabled,
@@ -282,7 +282,7 @@ export function useDashboardOverview() {
   const tasksQuery = useTasks(
     {
       page: 1,
-      pageSize: 5,
+      pageSize: 8,
     },
     {
       enabled: queriesEnabled,

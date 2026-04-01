@@ -124,7 +124,7 @@ export async function orderRoutes(app: FastifyInstance) {
       const { orderId } = orderParamsSchema.parse(request.params ?? {});
       await assertUserCanManageOrder(app.prisma, request.auth!.userId, orderId);
       const body = attachDeliverableBodySchema.parse(request.body ?? {});
-      const order = await attachDeliverable(app.prisma, orderId, body);
+      const order = await attachDeliverable(app.prisma, orderId, body, request.auth!.userId);
 
       return {
         data: order,
@@ -144,6 +144,7 @@ export async function orderRoutes(app: FastifyInstance) {
       const order = await requestOrderRevision(app.prisma, app.queues, orderId, {
         customerId: request.auth!.userId,
         note: body.note,
+        customerReferences: body.customerReferences,
       });
 
       return {

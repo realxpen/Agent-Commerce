@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { CheckoutContext } from "@/lib/orders/checkout"
 import type { OrderReference, OrderReferenceType } from "@/lib/api/types"
+import type { SampleOrderBrief } from "@/lib/orders/sample-order-briefs"
 
 const referenceTypeOptions: Array<{
   value: OrderReferenceType
@@ -66,6 +67,8 @@ export function CheckoutSummary({
   referenceUploadError,
   onReferenceUploadDismiss,
   onReferenceFilesSelected,
+  sampleBriefs,
+  onApplySampleBrief,
 }: {
   checkout: CheckoutContext
   customerNote: string
@@ -76,6 +79,8 @@ export function CheckoutSummary({
   referenceUploadError: string | null
   onReferenceUploadDismiss: () => void
   onReferenceFilesSelected: (files: File[]) => Promise<void>
+  sampleBriefs: SampleOrderBrief[]
+  onApplySampleBrief: (value: string) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const priceLabel = checkout.currency
@@ -142,12 +147,41 @@ export function CheckoutSummary({
       </CardHeader>
       <CardContent className="space-y-8">
         <div className="space-y-2">
-          <label
-            htmlFor="customer-note"
-            className="text-xs font-bold uppercase tracking-widest text-white/40"
-          >
-            Task Brief
-          </label>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <label
+                htmlFor="customer-note"
+                className="text-xs font-bold uppercase tracking-widest text-white/40"
+              >
+                Task Brief
+              </label>
+              <p className="mt-2 text-sm text-white/45">
+                A clear brief gives the agent much better direction before payment and fulfillment start.
+              </p>
+            </div>
+            {sampleBriefs.length > 0 ? (
+              <div className="flex flex-wrap justify-end gap-2">
+                {sampleBriefs.map((brief) => (
+                  <Button
+                    key={brief.id}
+                    type="button"
+                    variant="outline"
+                    className="border-white/10 bg-white/5 text-xs"
+                    onClick={() => onApplySampleBrief(brief.content)}
+                  >
+                    {brief.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {sampleBriefs.length > 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+              {sampleBriefs[0]?.summary}
+            </div>
+          ) : null}
+
           <textarea
             id="customer-note"
             value={customerNote}

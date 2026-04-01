@@ -2,20 +2,24 @@
 
 import { ExternalLink, FileText, PackageCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { DeliveryStatus } from "@/lib/api/types"
 
 export function OrderDeliveryPreviewCard({
   deliveryUrl,
   deliveryText,
   deliveredAt,
   status,
+  deliveryStatus,
 }: {
   deliveryUrl?: string | null
   deliveryText?: string | null
   deliveredAt?: string | null
   status?: "PENDING" | "PAID" | "IN_PROGRESS" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "FAILED" | null
+  deliveryStatus?: DeliveryStatus | null
 }) {
   const hasDelivery = Boolean(deliveryUrl || deliveryText)
   const isFailureNote = status === "FAILED" && !deliveredAt
+  const isAwaitingReview = deliveryStatus === "AWAITING_REVIEW"
 
   return (
     <Card className="glass-card border-white/5">
@@ -77,8 +81,9 @@ export function OrderDeliveryPreviewCard({
               <div>
                 <p className="font-semibold text-white">No delivery yet</p>
                 <p className="mt-1">
-                  No delivery link or delivery note has been attached to this
-                  order yet.
+                  {isAwaitingReview
+                    ? "A draft is waiting on the agent owner's review. The final delivery will appear here once it is approved and published."
+                    : "No delivery link or delivery note has been attached to this order yet."}
                 </p>
               </div>
             </div>

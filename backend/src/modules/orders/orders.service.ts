@@ -22,6 +22,10 @@ import type {
 } from "./orders.schemas.js";
 import { createHttpError } from "../../utils/http-error.js";
 import { orderDtoSelect, type OrderDto, type OrderListDto, type OrderRecord } from "./orders.types.js";
+import {
+  appendOrderDeliveryVersion,
+  toOrderDeliveryVersionList,
+} from "./delivery-versions.js";
 
 type OrderStore = PrismaClient | Prisma.TransactionClient;
 type CreateOrderInput = CreateOrderBody & {
@@ -118,8 +122,49 @@ function normalizeOrderReferences(
   })) satisfies Prisma.InputJsonArray;
 }
 
+function mergeOrderReferences(
+  existingValue: Prisma.JsonValue | null | undefined,
+  additionsValue: CreateOrderBody["customerReferences"],
+) {
+  const existingReferences = toOrderReferenceList(existingValue);
+  const additionalReferences = toOrderReferenceList(
+    normalizeOrderReferences(additionsValue) ?? null,
+  );
+
+  if (additionalReferences.length === 0) {
+    return existingReferences.length > 0
+      ? (existingReferences satisfies Prisma.InputJsonArray)
+      : Prisma.JsonNull;
+  }
+
+  const seen = new Set<string>();
+  const mergedReferences: OrderReferenceRecord[] = [];
+
+  for (const reference of [...existingReferences, ...additionalReferences]) {
+    const identity = reference.uploadId
+      ? `upload:${reference.uploadId}`
+      : `${reference.source}:${reference.type}:${reference.url.toLowerCase()}:${reference.label.toLowerCase()}`;
+
+    if (seen.has(identity)) {
+      continue;
+    }
+
+    seen.add(identity);
+    mergedReferences.push(reference);
+  }
+
+  if (mergedReferences.length > 16) {
+    throw createHttpError(
+      409,
+      "You can keep up to 16 total reference items on an order, including revision attachments",
+    );
+  }
+
+  return mergedReferences satisfies Prisma.InputJsonArray;
+}
+
 function toOrderReferenceList(
-  value: Prisma.JsonValue | null | undefined,
+  value: Prisma.JsonValue | Prisma.InputJsonArray | null | undefined,
 ): OrderReferenceRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -223,6 +268,42 @@ function toOrderRevisionRequestList(
   });
 }
 
+function hasActiveRevisionRequest(value: Prisma.JsonValue | null | undefined) {
+  return toOrderRevisionRequestList(value).some(
+    (revision) => revision.status === "OPEN" || revision.status === "ADDRESSING",
+  );
+}
+
+function getLatestActiveRevisionRequest(value: Prisma.JsonValue | null | undefined) {
+  return [...toOrderRevisionRequestList(value)]
+    .reverse()
+    .find((revision) => revision.status === "OPEN" || revision.status === "ADDRESSING")
+    ?? null;
+}
+
+function markRevisionRequests(
+  value: Prisma.JsonValue | null | undefined,
+  nextStatus: OrderRevisionRequestRecord["status"],
+  failureReason?: string | null,
+) {
+  const now = new Date().toISOString();
+  const revisions = toOrderRevisionRequestList(value).map((revision) => {
+    if (revision.status !== "OPEN" && revision.status !== "ADDRESSING") {
+      return revision;
+    }
+
+    return {
+      ...revision,
+      status: nextStatus,
+      updatedAt: now,
+      resolvedAt: nextStatus === "ADDRESSED" || nextStatus === "FAILED" ? now : null,
+      failureReason: nextStatus === "FAILED" ? failureReason ?? null : null,
+    } satisfies OrderRevisionRequestRecord;
+  });
+
+  return revisions.length > 0 ? (revisions satisfies Prisma.InputJsonArray) : Prisma.JsonNull;
+}
+
 function toOrderDto(order: OrderRecord): OrderDto {
   return {
     id: order.id,
@@ -256,9 +337,11 @@ function toOrderDto(order: OrderRecord): OrderDto {
       denom: order.denom,
       quantity: order.quantity,
     },
+    onchainOrderId: order.onchainOrderId?.toString() ?? null,
     customerNote: order.customerNote,
     customerReferences: toOrderReferenceList(order.customerReferences),
     revisionRequests: toOrderRevisionRequestList(order.revisionRequests),
+    deliveryVersions: toOrderDeliveryVersionList(order.deliveryVersions),
     payment: {
       reference: order.paymentReference,
       txHash: order.txHash,
@@ -318,6 +401,10 @@ function buildOrderStatusUpdate(
 
   if (input.txHash !== undefined) {
     data.txHash = normalizeOptionalString(input.txHash);
+  }
+
+  if (input.onchainOrderId !== undefined) {
+    data.onchainOrderId = input.onchainOrderId;
   }
 
   if (input.finalPaidAmount !== undefined) {
@@ -587,6 +674,7 @@ export async function requestOrderRevision(
   input: {
     customerId: string;
     note: string;
+    customerReferences?: CreateOrderBody["customerReferences"];
   },
 ): Promise<OrderDto> {
   const order = await db.$transaction(async (tx) => {
@@ -636,6 +724,10 @@ export async function requestOrderRevision(
       },
       data: {
         revisionRequests: nextRevisions,
+        customerReferences: mergeOrderReferences(
+          existingOrder.customerReferences,
+          input.customerReferences,
+        ),
       },
       select: orderDtoSelect,
     });
@@ -793,9 +885,13 @@ export async function attachDeliverable(
   db: PrismaClient,
   orderId: string,
   input: AttachDeliverableBody,
+  actorUserId?: string | null,
 ): Promise<OrderDto> {
   const updatedOrder = await db.$transaction(async (tx) => {
     const existingOrder = await findOrderOrThrow(tx, orderId);
+    const activeRevision = getLatestActiveRevisionRequest(existingOrder.revisionRequests);
+    const normalizedDeliveryUrl = normalizeOptionalString(input.deliveryUrl) ?? null;
+    const normalizedDeliveryText = normalizeOptionalString(input.deliveryText) ?? null;
 
     if (
       existingOrder.status === OrderStatus.CANCELLED ||
@@ -819,9 +915,24 @@ export async function attachDeliverable(
       data: {
         status: OrderStatus.DELIVERED,
         deliveryStatus: DeliveryStatus.DELIVERED,
-        deliveryUrl: normalizeOptionalString(input.deliveryUrl) ?? null,
-        deliveryText: normalizeOptionalString(input.deliveryText) ?? null,
+        deliveryUrl: normalizedDeliveryUrl,
+        deliveryText: normalizedDeliveryText,
         deliveredAt: existingOrder.deliveredAt ?? new Date(),
+        deliveryVersions: appendOrderDeliveryVersion(existingOrder.deliveryVersions, {
+          source: "owner_publish",
+          revisionRequestId: activeRevision?.id ?? null,
+          publishedByUserId: actorUserId ?? null,
+          deliveryUrl: normalizedDeliveryUrl,
+          deliveryText: normalizedDeliveryText,
+        }),
+        ...(activeRevision
+          ? {
+              revisionRequests: markRevisionRequests(
+                existingOrder.revisionRequests,
+                "ADDRESSED",
+              ),
+            }
+          : {}),
       },
       select: orderDtoSelect,
     });

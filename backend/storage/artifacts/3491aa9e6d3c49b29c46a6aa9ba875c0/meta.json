@@ -1,0 +1,13 @@
+{
+  "artifactId": "3491aa9e6d3c49b29c46a6aa9ba875c0",
+  "taskRunId": "b18159a5892f4863a06c66244",
+  "orderId": "cmndwnzzg000djcc4lxsdlayl",
+  "title": "Competitor Research Brief source export",
+  "fileName": "competitor-research-brief-source-export.json",
+  "contentType": "application/json",
+  "sizeBytes": 224,
+  "source": "tool",
+  "toolName": "file_transformer",
+  "storedFileName": "competitor-research-brief-source-export.json",
+  "createdAt": "2026-03-31T00:55:55.218Z"
+}

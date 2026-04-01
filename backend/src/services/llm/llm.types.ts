@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const LLM_PROVIDER_NAMES = ["openai"] as const;
+export const LLM_PROVIDER_NAMES = ["openai", "gemini"] as const;
 export type LlmProviderName = (typeof LLM_PROVIDER_NAMES)[number];
 
 export const TASK_PROMPT_KINDS = [
@@ -10,6 +10,18 @@ export const TASK_PROMPT_KINDS = [
 ] as const;
 
 export type TaskPromptKind = (typeof TASK_PROMPT_KINDS)[number];
+
+export const TASK_TOOL_NAMES = [
+  "web_fetch",
+  "page_summary",
+  "reference_digest",
+  "document_builder",
+  "file_transformer",
+  "code_runner",
+  "image_generator",
+] as const;
+
+export type TaskToolName = (typeof TASK_TOOL_NAMES)[number];
 
 export type JsonSchemaObject = Record<string, unknown>;
 
@@ -63,6 +75,7 @@ const taskExecutionConfigSchema = z.object({
   promptKind: z.enum(TASK_PROMPT_KINDS).optional(),
   additionalInstructions: z.string().trim().min(1).max(4_000).optional(),
   responseSchemaVersion: z.string().trim().min(1).max(32).optional(),
+  allowedTools: z.array(z.enum(TASK_TOOL_NAMES)).max(8).optional(),
 });
 
 export type TaskExecutionConfig = z.infer<typeof taskExecutionConfigSchema>;

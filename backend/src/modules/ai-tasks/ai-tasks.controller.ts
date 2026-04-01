@@ -7,16 +7,17 @@ import {
   triggerTaskProcessingBodySchema,
 } from "./ai-tasks.schemas.js";
 import { getTaskRunById, listTaskRuns, triggerTaskProcessingForOrder } from "./task.service.js";
-import { assertUserMatches } from "../auth/auth.service.js";
+import { assertUserCanManageOrder, assertUserMatches } from "../auth/auth.service.js";
 
 export function triggerOrderTaskProcessingHandler(app: FastifyInstance) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const { orderId } = orderTaskParamsSchema.parse(request.params ?? {});
+    await assertUserCanManageOrder(app.prisma, request.auth!.userId, orderId);
     const body = triggerTaskProcessingBodySchema.parse(request.body ?? {});
 
     const result = await triggerTaskProcessingForOrder(app.prisma, app.queues, {
       orderId,
-      source: "manual-test",
+      source: "owner-resume",
       force: body.force,
       taskConfig: body,
     });

@@ -5,6 +5,7 @@ import { useAgent, useDashboardStats, useServices } from "@/hooks/api"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 import { isApiError } from "@/lib/api"
 import type { AgentServiceDto } from "@/lib/api/types"
+import { buildCheckoutHref } from "@/lib/orders/checkout"
 
 function getPrimaryService(services: AgentServiceDto[]) {
   return (
@@ -91,11 +92,18 @@ export function useAgentProfile(agentId: string) {
 
     return {
       disabled: false,
-      href: `/checkout/${primaryService.id}`,
+      href:
+        agent && primaryService
+          ? buildCheckoutHref({
+              agent,
+              service: primaryService,
+            })
+          : null,
       label: "Hire Agent",
-        helperText: "Payment is handled through the appchain checkout flow.",
+      helperText: "Payment is handled through the appchain checkout flow.",
       }
   }, [
+    agent,
     primaryService,
     wallet.isConfigured,
     wallet.isConnected,

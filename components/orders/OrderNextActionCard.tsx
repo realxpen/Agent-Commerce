@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { Info, Sparkles } from "lucide-react"
 import { WalletActionButton } from "@/components/guards"
 import { TransactionStatusPanel } from "@/components/transactions"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ type NextActionKind =
   | "wait_payment"
   | "wait_delivery"
   | "mark_in_progress"
+  | "resume_fulfillment"
   | "mark_delivered"
   | "confirm_completion"
   | "wait_customer"
@@ -46,8 +48,10 @@ export function OrderNextActionCard({
   deliveryTextInput,
   onDeliveryTextChange,
   onMarkInProgress,
+  onResumeFulfillment,
   onMarkDelivered,
   onConfirmCompletion,
+  isResumingFulfillment = false,
   activeTransaction,
   actionNotice,
   actionWarning,
@@ -61,8 +65,10 @@ export function OrderNextActionCard({
   deliveryTextInput: string
   onDeliveryTextChange: (value: string) => void
   onMarkInProgress: () => void | Promise<unknown>
+  onResumeFulfillment: () => void | Promise<unknown>
   onMarkDelivered: () => void | Promise<unknown>
   onConfirmCompletion: () => void | Promise<unknown>
+  isResumingFulfillment?: boolean
   activeTransaction: {
     key: string
     label: string
@@ -83,6 +89,8 @@ export function OrderNextActionCard({
     switch (nextAction.kind) {
       case "mark_in_progress":
         return onMarkInProgress
+      case "resume_fulfillment":
+        return onResumeFulfillment
       case "mark_delivered":
         return onMarkDelivered
       case "confirm_completion":
@@ -90,7 +98,13 @@ export function OrderNextActionCard({
       default:
         return null
     }
-  }, [nextAction.kind, onConfirmCompletion, onMarkDelivered, onMarkInProgress])
+  }, [
+    nextAction.kind,
+    onConfirmCompletion,
+    onMarkDelivered,
+    onMarkInProgress,
+    onResumeFulfillment,
+  ])
 
   return (
     <Card className="glass-card border-white/5">
@@ -176,7 +190,22 @@ export function OrderNextActionCard({
           </div>
         ) : null}
 
-        {actionHandler && nextAction.ctaLabel ? (
+        {actionHandler &&
+        nextAction.ctaLabel &&
+        nextAction.kind === "resume_fulfillment" ? (
+          <Button
+            className="w-full"
+            disabled={nextAction.actionDisabled || isResumingFulfillment}
+            onClick={() => void actionHandler()}
+            type="button"
+          >
+            {isResumingFulfillment ? "Resuming Fulfillment..." : nextAction.ctaLabel}
+          </Button>
+        ) : null}
+
+        {actionHandler &&
+        nextAction.ctaLabel &&
+        nextAction.kind !== "resume_fulfillment" ? (
           <WalletActionButton
             className="w-full"
             connectLabel="Connect Wallet to Continue"
