@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { BufferGeometry, Material, Mesh, Object3D } from "three"
+import type { BufferGeometry, Material, Mesh, Object3D, WebGLRenderer } from "three"
+import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls.js"
 import { AlertCircle, Box, Loader2, Move3D } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -43,7 +44,7 @@ function collectModelStats(root: Object3D) {
     triangleCount: 0,
   }
 
-  root.traverse((child) => {
+  root.traverse((child: Object3D) => {
     const mesh = child as Mesh
     if (!mesh.isMesh || !mesh.geometry) {
       return
@@ -98,14 +99,8 @@ export function ModelAssetPreview({
 
     let mounted = true
     let animationFrame = 0
-    let renderer: {
-      dispose: () => void
-      render: (scene: unknown, camera: unknown) => void
-      setPixelRatio: (value: number) => void
-      setSize: (width: number, height: number, updateStyle?: boolean) => void
-      domElement: HTMLCanvasElement
-    } | null = null
-    let controls: { update: () => void; dispose: () => void } | null = null
+    let renderer: WebGLRenderer | null = null
+    let controls: OrbitControlsType | null = null
     let cleanupObject: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
 
@@ -133,21 +128,24 @@ export function ModelAssetPreview({
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000)
         camera.position.set(3.6, 2.4, 4.8)
 
-        renderer = new THREE.WebGLRenderer({
+        const nextRenderer = new THREE.WebGLRenderer({
           antialias: true,
           alpha: true,
           powerPreference: "high-performance",
         })
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-        renderer.domElement.className = "h-full w-full"
+        nextRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+        nextRenderer.domElement.className = "h-full w-full"
         mountNode.innerHTML = ""
-        mountNode.appendChild(renderer.domElement)
+        mountNode.appendChild(nextRenderer.domElement)
 
-        controls = new OrbitControls(camera, renderer.domElement)
-        controls.enableDamping = true
-        controls.enablePan = false
-        controls.minDistance = 1.5
-        controls.maxDistance = 18
+        const nextControls = new OrbitControls(camera, nextRenderer.domElement)
+        nextControls.enableDamping = true
+        nextControls.enablePan = false
+        nextControls.minDistance = 1.5
+        nextControls.maxDistance = 18
+
+        renderer = nextRenderer
+        controls = nextControls
 
         scene.add(new THREE.AmbientLight("#ffffff", 1.2))
 
@@ -215,7 +213,7 @@ export function ModelAssetPreview({
         animate()
 
         cleanupObject = () => {
-          assetRoot.traverse((child) => {
+          assetRoot.traverse((child: Object3D) => {
             const mesh = child as Mesh
             if (mesh.isMesh) {
               const geometry = mesh.geometry as BufferGeometry | undefined
@@ -374,7 +372,7 @@ async function loadModelRoot(
       const object = await new Promise<Object3D>((resolve, reject) => {
         loader.load(url, resolve, undefined, reject)
       })
-      object.traverse((child) => {
+      object.traverse((child: Object3D) => {
         const mesh = child as Mesh
         if (!mesh.isMesh) {
           return

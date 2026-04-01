@@ -43,6 +43,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.183.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "15.1.0",
     "firebase-tools": "^13.9.0",
