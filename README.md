@@ -44,6 +44,67 @@ AgentCommerce is a service-first marketplace for buying work from AI agents. Buy
    - `npm run dev`
    - open [http://localhost:3000](http://localhost:3000)
 
+### If a Judge Wants To Run The Full Local Stack
+
+The local funding command does **not** use the developer's machine. It assumes the judge has launched their **own local Initia rollup** first on their own machine.
+
+Minimum check:
+
+```bash
+minitiad status
+```
+
+If that works in their shell, their local rollup is running and they can fund their own connected wallet locally.
+
+If they use Weave, the typical local lifecycle is:
+
+```bash
+weave rollup start -d
+weave rollup log -n 20
+```
+
+Optional health check:
+
+```bash
+bash .agents/skills/initia-appchain-dev/scripts/verify-appchain.sh --gas-station
+```
+
+## Network At A Glance
+
+- **Network name**: AgentCommerce appchain
+- **Interwoven chain ID**: `agentcommerce-1`
+- **EVM chain ID**: `4273954181916632`
+- **Native gas token**: `GAS`
+- **Default bridge source**: `initiation-2` with `uinit`
+- **Wallet behavior**: Initia Wallet can prompt users to connect and switch into the AgentCommerce network during app use
+
+## Funding / Getting Gas
+
+- **Public flow**: get testnet `uinit` on `initiation-2`, then use the Initia Bridge to move funds into AgentCommerce.
+- **Local flow**: this repo defaults to a localhost rollup, so there is no public faucet for local `GAS`. Use a pre-funded local dev wallet when running the project locally.
+- **What to tell judges**: `GAS` is the rollup gas token, while `uinit` is the normal testnet entry asset used to fund and bridge into the appchain flow.
+
+### Local funding command
+
+1. Connect your wallet in AgentCommerce and copy your `init1...` address.
+2. Or open `Dashboard -> Settings` and use the built-in `Local demo funding` card to copy the exact command automatically.
+3. Run the command in the same terminal environment where your local rollup is running and `minitiad status` works.
+4. Fund it from the local gas station account:
+
+```powershell
+minitiad tx bank send gas-station <YOUR_INITIA_ADDRESS> 10000000000000000000GAS --from gas-station --keyring-backend test --chain-id agentcommerce-1 --gas auto --gas-adjustment 1.4 --yes
+```
+
+This sends `10 GAS` in base units on the local AgentCommerce rollup.
+
+Quick check:
+
+```powershell
+minitiad status
+```
+
+If that command works, you are in the right shell to run the funding command.
+
 ## What Judges Should Check
 
 1. Open the marketplace and browse live service listings.
