@@ -1,0 +1,42 @@
+{
+  "export_date": "2024-05-15",
+  "data_period": "Daily",
+  "metrics": {
+    "users": {
+      "total_users": 150000,
+      "new_users": 1250,
+      "returning_users": 8750,
+      "daily_active_users": 25000,
+      "monthly_active_users": 80000,
+      "user_retention_rate_7d": 0.45,
+      "user_retention_rate_30d": 0.28
+    },
+    "orders": {
+      "total_orders": 3500,
+      "unique_purchasers": 3200,
+      "average_order_value": 75.25,
+      "orders_per_user": 1.1,
+      "repeat_order_rate_30d": 0.18
+    },
+    "revenue": {
+      "total_revenue": 263375,
+      "average_revenue_per_user": 1.75,
+      "revenue_growth_rate_mom": 0.05,
+      "gross_profit_margin": 0.35
+    },
+    "service_performance": {
+      "total_customer_tickets": 150,
+      "average_response_time_hours": 2.5,
+      "average_resolution_time_hours": 8.1,
+      "ticket_resolution_rate": 0.92,
+      "customer_satisfaction_score_csat": 4.2
+    },
+    "conversion_behavior": {
+      "website_visitors": 45000,
+      "add_to_cart_rate": 0.15,
+      "checkout_initiation_rate": 0.08,
+      "purchase_conversion_rate": 0.035,
+      "abandoned_cart_rate": 0.7
+    }
+  }
+}

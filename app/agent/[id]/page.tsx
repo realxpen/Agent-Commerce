@@ -101,9 +101,7 @@ export default function AgentProfilePage() {
   const ordersValue = stats
     ? String(stats.totals.totalOrders)
     : String(agent.orderCount)
-  const servicesValue = stats
-    ? String(stats.totals.totalAgents > 0 ? agent.serviceCount : agent.serviceCount)
-    : String(agent.serviceCount)
+  const servicesValue = String(profile.services.length)
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
@@ -213,7 +211,7 @@ export default function AgentProfilePage() {
                     Services
                   </h2>
                   <p className="mt-1 text-white/45">
-                    Live services fetched from the backend for this agent.
+                    Verified working preset services currently visible for this agent.
                   </p>
                 </div>
                 <Badge

@@ -44,95 +44,11 @@ import {
   getServiceExecutionModeDefinition,
   getSupportedCreationExecutionModeDefinitions,
   getSupportedCreationExecutionModes,
-  type ServiceExecutionMode,
 } from "@/lib/services/execution-mode"
-
-type ServicePreset = {
-  id: string
-  title: string
-  description: string
-  priceAmount: string
-  estimatedDeliveryMinutes: string
-  executionMode: ServiceExecutionMode
-  deliverableType: ServiceDeliverableType
-  spotlight: string
-  expectedOutput: string
-}
-
-const serviceTestPresets: readonly ServicePreset[] = [
-  {
-    id: "structured-export",
-    title: "Structured Analytics Export",
-    description:
-      "Upload CSV, JSON, notes, or transcripts and receive a normalized analytics pack with computed findings, a briefing document, and export-ready files.",
-    priceAmount: "35",
-    estimatedDeliveryMinutes: "90",
-    executionMode: "file_generation",
-    deliverableType: "data",
-    spotlight: "Best for the guarded code runner and file artifacts.",
-    expectedOutput: "JSON export, markdown briefing, and computed analysis files.",
-  },
-  {
-    id: "competitor-brief",
-    title: "Competitor Research Brief",
-    description:
-      "Research the referenced competitors, compare their messaging and positioning, and produce a concise brief with grounded findings and source-backed recommendations.",
-    priceAmount: "30",
-    estimatedDeliveryMinutes: "90",
-    executionMode: "research_with_links",
-    deliverableType: "document",
-    spotlight: "Best for source-backed research output and clean document delivery.",
-    expectedOutput: "Research brief with structured findings, links, and market gaps.",
-  },
-  {
-    id: "visual-draft-kit",
-    title: "Visual Campaign Draft Kit",
-    description:
-      "Turn a brief plus reference images into polished draft visuals for ads, thumbnails, posters, or hero artwork, then review the draft before delivery.",
-    priceAmount: "45",
-    estimatedDeliveryMinutes: "120",
-    executionMode: "hybrid_ai_plus_owner_review",
-    deliverableType: "design",
-    spotlight: "Best for image generation with owner review.",
-    expectedOutput: "Generated image artifacts waiting in the owner review stage.",
-  },
-  {
-    id: "staking-contract",
-    title: "ERC20 Staking Contract Draft",
-    description:
-      "Draft a staking smart contract package with reward logic, security notes, and implementation-ready source material.",
-    priceAmount: "80",
-    estimatedDeliveryMinutes: "180",
-    executionMode: "file_generation",
-    deliverableType: "contract",
-    spotlight: "Best for smart contract code previews and downloadable source.",
-    expectedOutput: "Solidity or Rust-style contract source plus implementation notes.",
-  },
-  {
-    id: "dashboard-starter",
-    title: "React Dashboard Starter",
-    description:
-      "Build a starter dashboard package with typed components, clean sections, and code the owner can ship or extend.",
-    priceAmount: "60",
-    estimatedDeliveryMinutes: "120",
-    executionMode: "file_generation",
-    deliverableType: "code",
-    spotlight: "Best for code package delivery and archive-style handoff.",
-    expectedOutput: "TSX, TS, and structured code artifacts ready to download.",
-  },
-  {
-    id: "tokenomics-sheet",
-    title: "Tokenomics Spreadsheet Pack",
-    description:
-      "Turn uploaded metrics, assumptions, and planning notes into a spreadsheet-ready tokenomics or ROI pack with clean tabs and summary guidance.",
-    priceAmount: "50",
-    estimatedDeliveryMinutes: "120",
-    executionMode: "file_generation",
-    deliverableType: "spreadsheet",
-    spotlight: "Best for workbook-style outputs and sheet-friendly exports.",
-    expectedOutput: "Spreadsheet-oriented file pack with structured calculations and summary notes.",
-  },
-] as const
+import {
+  findWorkingServicePresetByTitle,
+  workingServicePresets,
+} from "@/lib/services/presets"
 
 function parseBigIntCandidate(value: string | null) {
   if (!value) {
@@ -198,6 +114,10 @@ export function CreateServiceWizard() {
     () => getServiceExecutionModeDefinition(formData.executionMode),
     [formData.executionMode],
   )
+  const selectedPreset = useMemo(
+    () => findWorkingServicePresetByTitle(formData.title),
+    [formData.title],
+  )
   const deliverableDefinition = useMemo(
     () => getServiceDeliverableDefinition(formData.deliverableType),
     [formData.deliverableType],
@@ -243,7 +163,7 @@ export function CreateServiceWizard() {
     }
   }
 
-  const applyPreset = (preset: ServicePreset) => {
+  const applyPreset = (preset: (typeof workingServicePresets)[number]) => {
     setFormData((current) => ({
       ...current,
       title: preset.title,
@@ -447,13 +367,13 @@ export function CreateServiceWizard() {
           <CardContent className="space-y-6">
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-white">Quick Test Presets</p>
+                <p className="text-sm font-semibold text-white">Working Presets</p>
                 <p className="mt-1 text-sm text-white/45">
-                  Load a ready-made AI-first service setup for the live deliverable flows.
+                  Load one of the verified preset services that currently works end to end in AgentCommerce.
                 </p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                {serviceTestPresets.map((preset) => {
+                {workingServicePresets.map((preset) => {
                   const isSelected =
                     formData.title === preset.title &&
                     formData.executionMode === preset.executionMode &&
@@ -530,9 +450,14 @@ export function CreateServiceWizard() {
                 id="title"
                 value={formData.title}
                 onChange={(event) => updateField("title", event.target.value)}
-                placeholder="SEO Article Package"
+                placeholder="Choose a working preset above"
                 className="border-white/10 bg-black/40"
+                readOnly
               />
+              <p className="text-sm text-white/45">
+                Preset titles are locked so only the verified working services can
+                be published right now.
+              </p>
               <FieldError field="title" errors={createService.fieldErrors} />
             </div>
 
@@ -607,6 +532,7 @@ export function CreateServiceWizard() {
                   updateField("deliverableType", event.target.value)
                 }
                 className="flex h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none"
+                disabled
               >
                 {creatableDeliverableDefinitions.map((definition) => (
                   <option key={definition.value} value={definition.value}>
@@ -632,6 +558,11 @@ export function CreateServiceWizard() {
                 </div>
                 <p className="mt-2">{deliverableDefinition.description}</p>
                 <p className="mt-3 text-white/45">{deliverableDefinition.serviceHint}</p>
+                <p className="mt-3 text-white/45">
+                  {selectedPreset
+                    ? `Locked to the verified ${selectedPreset.title} preset.`
+                    : "Choose a working preset above to lock the verified deliverable flow."}
+                </p>
               </div>
 
               {comingSoonDeliverableDefinitions.length > 0 ? (
@@ -664,7 +595,7 @@ export function CreateServiceWizard() {
                 value={formData.executionMode}
                 onChange={(event) => updateField("executionMode", event.target.value)}
                 className="flex h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none"
-                disabled={supportedExecutionModeDefinitions.length === 0}
+                disabled
               >
                 {supportedExecutionModeDefinitions.map((mode) => (
                   <option key={mode.value} value={mode.value}>
@@ -695,6 +626,11 @@ export function CreateServiceWizard() {
                     : deliverableDefinition.automationLevel === "owner_review"
                       ? "This deliverable type works best when AI drafts first and the owner signs off before the customer sees it."
                       : "This deliverable type is preview-ready in the app, but it is not available for new AI-first services yet."}
+                </p>
+                <p className="mt-3 text-white/45">
+                  {selectedPreset
+                    ? `Locked to the verified ${selectedPreset.title} preset.`
+                    : "Choose a working preset above to lock the verified fulfillment mode."}
                 </p>
               </div>
             </div>

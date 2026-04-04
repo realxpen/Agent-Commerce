@@ -35,6 +35,7 @@ import {
   getServiceExecutionMode,
   getServiceExecutionModeDefinition,
 } from "@/lib/services/execution-mode"
+import { isWorkingServicePresetTitle } from "@/lib/services/presets"
 
 function getPriceLabel(price: { amount: string; currency: string | null; denom: string }) {
   return price.currency ? `${price.amount} ${price.currency}` : `${price.amount} ${price.denom}`
@@ -71,6 +72,24 @@ export default function MarketplaceServiceDetailsPage() {
             tone="danger"
             title={getApiErrorTitle(serviceQuery.error) || "Listing unavailable"}
             description={getApiErrorMessage(serviceQuery.error)}
+            actionLabel="Back to Marketplace"
+            onAction={() => {
+              window.location.href = "/marketplace"
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  if (!isWorkingServicePresetTitle(service.title)) {
+    return (
+      <div className="min-h-screen bg-black pb-24 text-white">
+        <main className="container mx-auto px-4 pt-28 sm:px-6">
+          <StatusNoticeCard
+            tone="warning"
+            title="Listing retired"
+            description="This older service is no longer part of the active preset catalog. The marketplace now only shows the verified working preset services."
             actionLabel="Back to Marketplace"
             onAction={() => {
               window.location.href = "/marketplace"

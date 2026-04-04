@@ -19,6 +19,7 @@ import {
   getServiceExecutionMode,
   getServiceExecutionModeDefinition,
 } from "@/lib/services/execution-mode"
+import { filterWorkingPresetServices } from "@/lib/services/presets"
 
 export type MarketplaceAgentSummary = {
   id: string
@@ -174,7 +175,10 @@ export function useMarketplaceCatalog() {
   })
 
   const agents = agentsQuery.data?.data ?? []
-  const services = servicesQuery.data?.data ?? []
+  const services = useMemo(
+    () => filterWorkingPresetServices(servicesQuery.data?.data ?? []),
+    [servicesQuery.data?.data],
+  )
 
   const agentsById = useMemo(() => {
     return new Map(agents.map((agent) => [agent.id, agent]))
@@ -211,6 +215,12 @@ export function useMarketplaceCatalog() {
       })
       .sort((left, right) => right.trendScore - left.trendScore)
   }, [agentsById, services])
+
+  const marketplaceAgents = useMemo(() => {
+    const visibleAgentIds = new Set(enrichedServices.map((service) => service.agentId))
+
+    return agents.filter((agent) => visibleAgentIds.has(agent.id))
+  }, [agents, enrichedServices])
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
@@ -253,7 +263,7 @@ export function useMarketplaceCatalog() {
   }, [filteredServices])
 
   const filteredAgents = useMemo(() => {
-    return agents
+    return marketplaceAgents
       .filter((agent) => {
         const matchesCategory =
           selectedCategory === allMarketplaceCategoriesLabel ||
@@ -267,7 +277,7 @@ export function useMarketplaceCatalog() {
         const rightScore = right.orderCount * 2 + right.serviceCount
         return rightScore - leftScore
       })
-  }, [agents, deferredSearchQuery, filteredAgentIds, selectedCategory])
+  }, [deferredSearchQuery, filteredAgentIds, marketplaceAgents, selectedCategory])
 
   const servicesByAgent = useMemo(() => {
     const map = new Map<string, MarketplaceCatalogService[]>()
@@ -347,16 +357,19 @@ export function useMarketplaceCatalog() {
     const ownerReviewCount = enrichedServices.filter(
       (service) => normalizeText(service.executionModeLabel).includes("owner review"),
     ).length
-    const totalOrders = agents.reduce((sum, agent) => sum + agent.orderCount, 0)
+    const totalOrders = marketplaceAgents.reduce(
+      (sum, agent) => sum + agent.orderCount,
+      0,
+    )
 
     return {
-      totalAgents: agents.length,
+      totalAgents: marketplaceAgents.length,
       totalServices: enrichedServices.length,
       totalOrders,
       aiReadyCount,
       ownerReviewCount,
     }
-  }, [agents, enrichedServices])
+  }, [enrichedServices, marketplaceAgents])
 
   const isLoading = agentsQuery.isLoading || servicesQuery.isLoading
   const isFetching = agentsQuery.isFetching || servicesQuery.isFetching
@@ -370,7 +383,7 @@ export function useMarketplaceCatalog() {
     setSelectedCategory,
     categories,
     spotlightCategory,
-    agents,
+    agents: marketplaceAgents,
     services: enrichedServices,
     filteredAgents,
     filteredServices,

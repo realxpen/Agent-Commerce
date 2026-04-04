@@ -1,0 +1,13 @@
+{
+  "artifactId": "b49832beb7ef4128aff8405eed86ea0d",
+  "taskRunId": "454d1386468047938966b366b",
+  "orderId": "cmnkmq8h5000rjcxc0myp2gz5",
+  "title": "Structured Analytics Export source export",
+  "fileName": "structured-analytics-export-source-export.json",
+  "contentType": "application/json",
+  "sizeBytes": 226,
+  "source": "tool",
+  "toolName": "file_transformer",
+  "storedFileName": "structured-analytics-export-source-export.json",
+  "createdAt": "2026-04-04T17:53:05.871Z"
+}

@@ -1,0 +1,13 @@
+{
+  "artifactId": "e161ef69930d49e2b6e2a0514c5d74a1",
+  "taskRunId": "454d1386468047938966b366b",
+  "orderId": "cmnkmq8h5000rjcxc0myp2gz5",
+  "title": "Structured Analytics Export (Example Data)",
+  "fileName": "structured-analytics-export-example-data.json",
+  "contentType": "application/json",
+  "sizeBytes": 1145,
+  "source": "llm",
+  "toolName": null,
+  "storedFileName": "structured-analytics-export-example-data.json",
+  "createdAt": "2026-04-04T17:53:18.889Z"
+}

@@ -7,6 +7,7 @@ import { useMemo, useState } from "react"
 import { WalletActionButton } from "@/components/guards"
 import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
 import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
+import { StatusNoticeCard } from "@/components/states"
 import { Button } from "@/components/ui/button"
 import { CheckoutSummary } from "@/components/orders/CheckoutSummary"
 import { OrderSuccessConfirmation } from "@/components/orders/OrderSuccessConfirmation"
@@ -22,6 +23,10 @@ import {
 } from "@/lib/orders/checkout"
 import { buildCheckoutBriefCoachPlan } from "@/lib/orders/brief-coach"
 import { buildSampleOrderBriefs } from "@/lib/orders/sample-order-briefs"
+import {
+  filterWorkingPresetServices,
+  isWorkingServicePresetTitle,
+} from "@/lib/services/presets"
 
 export default function CheckoutPage() {
   const params = useParams<{ id: string }>()
@@ -73,7 +78,7 @@ export default function CheckoutPage() {
       }
     }
 
-    return Array.from(deduped.values())
+    return filterWorkingPresetServices(Array.from(deduped.values()))
   }, [activeServicesQuery.data?.data, sameAgentServicesQuery.data?.data])
   const sampleBriefs = useMemo(
     () =>
@@ -109,12 +114,50 @@ export default function CheckoutPage() {
     ? `/agent/${checkout.backendAgentId}`
     : "/marketplace"
 
+  if (
+    serviceQuery.data?.data &&
+    !isWorkingServicePresetTitle(serviceQuery.data.data.title)
+  ) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
+          <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+            <HeaderBackLink href={backHref} label="Back" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium">
+              <Lock className="w-3 h-3" />
+              <span>Listing retired</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center p-6 pt-32">
+          <div className="w-full max-w-2xl">
+            <StatusNoticeCard
+              tone="warning"
+              title="This service is no longer checkout-ready"
+              description="Older non-working services have been retired from AgentCommerce. Only the verified working preset services can be ordered now."
+              actionLabel="Back to Marketplace"
+              onAction={() => {
+                window.location.href = "/marketplace"
+              }}
+            />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <HeaderBackLink href={backHref} label="Back to Agent" />
           <div className="flex items-center gap-3">
+            <Link href="/dashboard">
+              <Button variant="outline" className="border-white/10 bg-white/5">
+                Dashboard
+              </Button>
+            </Link>
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
               <Lock className="w-3 h-3" />
               <span>Secure Checkout</span>

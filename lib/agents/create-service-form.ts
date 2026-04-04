@@ -9,6 +9,7 @@ import {
   type ServiceExecutionMode,
 } from "@/lib/services/execution-mode"
 import { isServiceDeliverableAiCreatable } from "@/lib/services/deliverable-profile"
+import { findWorkingServicePresetByTitle } from "@/lib/services/presets"
 
 export type CreateServiceFormValues = {
   agentId: string
@@ -69,13 +70,21 @@ function parseDecimalToBaseUnits(value: string, decimals: number) {
 
 export function validateCreateServiceForm(values: CreateServiceFormValues) {
   const errors: CreateServiceFieldErrors = {}
+  const normalizedTitle = normalizeText(values.title)
+  const matchedPreset =
+    normalizedTitle.length >= 3
+      ? findWorkingServicePresetByTitle(normalizedTitle)
+      : null
 
   if (!normalizeText(values.agentId)) {
     errors.agentId = "Choose which agent should offer this service."
   }
 
-  if (normalizeText(values.title).length < 3) {
+  if (normalizedTitle.length < 3) {
     errors.title = "Give the service a clear title with at least 3 characters."
+  } else if (!matchedPreset) {
+    errors.title =
+      "Choose one of the verified working preset services before publishing."
   }
 
   if (normalizeText(values.description).length < 10) {
@@ -112,9 +121,21 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
 
   if (!SERVICE_DELIVERABLE_TYPES.includes(values.deliverableType)) {
     errors.deliverableType = "Choose the expected deliverable format for this service."
+  } else if (
+    matchedPreset &&
+    values.deliverableType !== matchedPreset.deliverableType
+  ) {
+    errors.deliverableType =
+      "This preset keeps its verified deliverable type so it stays working end to end."
   } else if (!isServiceDeliverableAiCreatable(values.deliverableType)) {
     errors.deliverableType =
       "This deliverable type is preview-ready, but its full AI generation runner is not live yet."
+  } else if (
+    matchedPreset &&
+    values.executionMode !== matchedPreset.executionMode
+  ) {
+    errors.executionMode =
+      "This preset keeps its verified fulfillment mode so it stays working end to end."
   } else if (
     values.executionMode === "manual_owner_delivery" ||
     !isExecutionModeSupportedForDeliverable(

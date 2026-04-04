@@ -6,6 +6,7 @@ import { useWalletConnectionFlow } from "@/hooks/wallet"
 import { isApiError } from "@/lib/api"
 import type { AgentServiceDto } from "@/lib/api/types"
 import { buildCheckoutHref } from "@/lib/orders/checkout"
+import { filterWorkingPresetServices } from "@/lib/services/presets"
 
 function getPrimaryService(services: AgentServiceDto[]) {
   return (
@@ -39,7 +40,10 @@ export function useAgentProfile(agentId: string) {
   )
 
   const agent = agentQuery.data?.data ?? null
-  const services = servicesQuery.data?.data ?? []
+  const services = useMemo(
+    () => filterWorkingPresetServices(servicesQuery.data?.data ?? []),
+    [servicesQuery.data?.data],
+  )
   const primaryService = getPrimaryService(services)
 
   const servicesUnavailable =
