@@ -128,6 +128,22 @@ export async function executeContractWrite<TData = void>(
   try {
     params.onAwaitingWallet?.()
 
+    const autoSignMessage = {
+      typeUrl: "/minievm.evm.v1.MsgCall",
+      value: {
+        sender: params.autoSignContext?.senderAddress,
+        contractAddr: params.address,
+        input: encodeFunctionData({
+          abi: params.abi as Abi,
+          functionName: params.functionName,
+          args: params.args,
+        }),
+        value: params.value?.toString() ?? "0",
+        accessList: [],
+        authList: [],
+      },
+    } as const
+
     if (
       params.autoSignContext?.enabled &&
       params.autoSignContext.senderAddress
@@ -135,26 +151,19 @@ export async function executeContractWrite<TData = void>(
       let autoSignTxHash: string | undefined
 
       try {
-        autoSignTxHash = await params.autoSignContext.requestTxSync({
+        autoSignTxHash = await params.autoSignContext.submitTxSync({
           chainId: params.autoSignContext.chainId,
-          messages: [
-            {
-              typeUrl: "/minievm.evm.v1.MsgCall",
-              value: {
-                sender: params.autoSignContext.senderAddress,
-                contractAddr: params.address,
-                input: encodeFunctionData({
-                  abi: params.abi as Abi,
-                  functionName: params.functionName,
-                  args: params.args,
-                }),
-                value: params.value?.toString() ?? "0",
-                accessList: [],
-                authList: [],
+          messages: [autoSignMessage],
+          fee: {
+            amount: [
+              {
+                denom: params.autoSignContext.preferredFeeDenom,
+                amount: "0",
               },
-            },
-          ],
-          internal: "agentcommerce-auto-sign",
+            ],
+            gas: "0",
+          },
+          preferredFeeDenom: params.autoSignContext.preferredFeeDenom,
         })
         submittedTxHash = normalizeContractTxHash(autoSignTxHash)
 

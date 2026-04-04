@@ -216,7 +216,16 @@ export const interwovenKitConfig = {
   customChains: [agentCommerceCustomChain],
   theme: "dark" as const,
   disableAnalytics: true,
-  enableAutoSign: true,
+  enableAutoSign: {
+    [agentCommerceConfig.appchain.interwovenChainId]: [
+      "/minievm.evm.v1.MsgCall",
+    ],
+  },
+  autoSignFeePolicy: {
+    [agentCommerceConfig.appchain.interwovenChainId]: {
+      allowedFeeDenoms: [agentCommerceConfig.appchain.nativeDenom],
+    },
+  },
 }
 
 export function getAppchainNetworkState(options: {

@@ -1,3 +1,10 @@
+import {
+  getServiceDeliverableTypeFromMetadata,
+  getServiceDeliverableTypeFromServiceSnapshot,
+  getServiceDeliverableTypeFromTaskInput,
+  type ServiceDeliverableType,
+} from "./service-deliverables.js";
+
 export const SERVICE_EXECUTION_MODES = [
   "text_delivery",
   "research_with_links",
@@ -10,6 +17,7 @@ export type ServiceExecutionMode = (typeof SERVICE_EXECUTION_MODES)[number];
 
 export type ServiceExecutionContext = {
   mode: ServiceExecutionMode;
+  deliverableType: ServiceDeliverableType;
   ownerReviewRequired: boolean;
   autoDelivery: boolean;
   usesLlm: boolean;
@@ -60,6 +68,7 @@ export function getServiceExecutionModeFromTaskInput(input: unknown): ServiceExe
 export function getServiceExecutionContext(mode: ServiceExecutionMode): ServiceExecutionContext {
   return {
     mode,
+    deliverableType: "document",
     ownerReviewRequired: mode === "hybrid_ai_plus_owner_review",
     autoDelivery:
       mode !== "manual_owner_delivery" &&
@@ -68,12 +77,26 @@ export function getServiceExecutionContext(mode: ServiceExecutionMode): ServiceE
   };
 }
 
+export function getServiceExecutionContextFromMetadata(metadata: unknown) {
+  const mode = getServiceExecutionModeFromMetadata(metadata);
+  return {
+    ...getServiceExecutionContext(mode),
+    deliverableType: getServiceDeliverableTypeFromMetadata(metadata),
+  };
+}
+
 export function getServiceExecutionContextFromServiceSnapshot(serviceSnapshot: unknown) {
-  return getServiceExecutionContext(
-    getServiceExecutionModeFromServiceSnapshot(serviceSnapshot),
-  );
+  return {
+    ...getServiceExecutionContext(
+      getServiceExecutionModeFromServiceSnapshot(serviceSnapshot),
+    ),
+    deliverableType: getServiceDeliverableTypeFromServiceSnapshot(serviceSnapshot),
+  };
 }
 
 export function getServiceExecutionContextFromTaskInput(input: unknown) {
-  return getServiceExecutionContext(getServiceExecutionModeFromTaskInput(input));
+  return {
+    ...getServiceExecutionContext(getServiceExecutionModeFromTaskInput(input)),
+    deliverableType: getServiceDeliverableTypeFromTaskInput(input),
+  };
 }

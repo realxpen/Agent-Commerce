@@ -35,9 +35,16 @@ import type {
   CreateServiceFormValues,
 } from "@/lib/agents/create-service-form"
 import {
+  getServiceDeliverableDefinition,
+  getServiceComingSoonDeliverableDefinitions,
+  getServiceCreationDeliverableDefinitions,
+  type ServiceDeliverableType,
+} from "@/lib/services/deliverable-profile"
+import {
   getServiceExecutionModeDefinition,
+  getSupportedCreationExecutionModeDefinitions,
+  getSupportedCreationExecutionModes,
   type ServiceExecutionMode,
-  serviceExecutionModeDefinitions,
 } from "@/lib/services/execution-mode"
 
 type ServicePreset = {
@@ -47,6 +54,7 @@ type ServicePreset = {
   priceAmount: string
   estimatedDeliveryMinutes: string
   executionMode: ServiceExecutionMode
+  deliverableType: ServiceDeliverableType
   spotlight: string
   expectedOutput: string
 }
@@ -60,8 +68,21 @@ const serviceTestPresets: readonly ServicePreset[] = [
     priceAmount: "35",
     estimatedDeliveryMinutes: "90",
     executionMode: "file_generation",
+    deliverableType: "data",
     spotlight: "Best for the guarded code runner and file artifacts.",
     expectedOutput: "JSON export, markdown briefing, and computed analysis files.",
+  },
+  {
+    id: "competitor-brief",
+    title: "Competitor Research Brief",
+    description:
+      "Research the referenced competitors, compare their messaging and positioning, and produce a concise brief with grounded findings and source-backed recommendations.",
+    priceAmount: "30",
+    estimatedDeliveryMinutes: "90",
+    executionMode: "research_with_links",
+    deliverableType: "document",
+    spotlight: "Best for source-backed research output and clean document delivery.",
+    expectedOutput: "Research brief with structured findings, links, and market gaps.",
   },
   {
     id: "visual-draft-kit",
@@ -71,8 +92,45 @@ const serviceTestPresets: readonly ServicePreset[] = [
     priceAmount: "45",
     estimatedDeliveryMinutes: "120",
     executionMode: "hybrid_ai_plus_owner_review",
+    deliverableType: "design",
     spotlight: "Best for image generation with owner review.",
     expectedOutput: "Generated image artifacts waiting in the owner review stage.",
+  },
+  {
+    id: "staking-contract",
+    title: "ERC20 Staking Contract Draft",
+    description:
+      "Draft a staking smart contract package with reward logic, security notes, and implementation-ready source material.",
+    priceAmount: "80",
+    estimatedDeliveryMinutes: "180",
+    executionMode: "file_generation",
+    deliverableType: "contract",
+    spotlight: "Best for smart contract code previews and downloadable source.",
+    expectedOutput: "Solidity or Rust-style contract source plus implementation notes.",
+  },
+  {
+    id: "dashboard-starter",
+    title: "React Dashboard Starter",
+    description:
+      "Build a starter dashboard package with typed components, clean sections, and code the owner can ship or extend.",
+    priceAmount: "60",
+    estimatedDeliveryMinutes: "120",
+    executionMode: "file_generation",
+    deliverableType: "code",
+    spotlight: "Best for code package delivery and archive-style handoff.",
+    expectedOutput: "TSX, TS, and structured code artifacts ready to download.",
+  },
+  {
+    id: "tokenomics-sheet",
+    title: "Tokenomics Spreadsheet Pack",
+    description:
+      "Turn uploaded metrics, assumptions, and planning notes into a spreadsheet-ready tokenomics or ROI pack with clean tabs and summary guidance.",
+    priceAmount: "50",
+    estimatedDeliveryMinutes: "120",
+    executionMode: "file_generation",
+    deliverableType: "spreadsheet",
+    spotlight: "Best for workbook-style outputs and sheet-friendly exports.",
+    expectedOutput: "Spreadsheet-oriented file pack with structured calculations and summary notes.",
   },
 ] as const
 
@@ -140,13 +198,49 @@ export function CreateServiceWizard() {
     () => getServiceExecutionModeDefinition(formData.executionMode),
     [formData.executionMode],
   )
+  const deliverableDefinition = useMemo(
+    () => getServiceDeliverableDefinition(formData.deliverableType),
+    [formData.deliverableType],
+  )
+  const creatableDeliverableDefinitions = useMemo(
+    () => getServiceCreationDeliverableDefinitions(),
+    [],
+  )
+  const comingSoonDeliverableDefinitions = useMemo(
+    () => getServiceComingSoonDeliverableDefinitions(),
+    [],
+  )
+  const supportedExecutionModeDefinitions = useMemo(
+    () => getSupportedCreationExecutionModeDefinitions(formData.deliverableType),
+    [formData.deliverableType],
+  )
 
   const updateField = (field: keyof CreateServiceFormValues, value: string) => {
-    setFormData((current) => ({
-      ...current,
-      [field]: value,
-    }))
+    setFormData((current) => {
+      if (field === "deliverableType") {
+        const nextDeliverableType = value as ServiceDeliverableType
+        const supportedModes =
+          getSupportedCreationExecutionModes(nextDeliverableType)
+
+        return {
+          ...current,
+          deliverableType: nextDeliverableType,
+          executionMode: supportedModes.includes(current.executionMode)
+            ? current.executionMode
+            : (supportedModes[0] ?? current.executionMode),
+        }
+      }
+
+      return {
+        ...current,
+        [field]: value,
+      }
+    })
     createService.clearFieldError(field)
+
+    if (field === "deliverableType") {
+      createService.clearFieldError("executionMode")
+    }
   }
 
   const applyPreset = (preset: ServicePreset) => {
@@ -157,6 +251,7 @@ export function CreateServiceWizard() {
       priceAmount: preset.priceAmount,
       estimatedDeliveryMinutes: preset.estimatedDeliveryMinutes,
       executionMode: preset.executionMode,
+      deliverableType: preset.deliverableType,
     }))
 
     createService.clearFieldError("title")
@@ -164,6 +259,7 @@ export function CreateServiceWizard() {
     createService.clearFieldError("priceAmount")
     createService.clearFieldError("estimatedDeliveryMinutes")
     createService.clearFieldError("executionMode")
+    createService.clearFieldError("deliverableType")
   }
 
   if (createService.isSuccess && createService.createdService) {
@@ -353,14 +449,18 @@ export function CreateServiceWizard() {
               <div>
                 <p className="text-sm font-semibold text-white">Quick Test Presets</p>
                 <p className="mt-1 text-sm text-white/45">
-                  Load a ready-made service setup for the new live tool runners.
+                  Load a ready-made AI-first service setup for the live deliverable flows.
                 </p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {serviceTestPresets.map((preset) => {
                   const isSelected =
                     formData.title === preset.title &&
-                    formData.executionMode === preset.executionMode
+                    formData.executionMode === preset.executionMode &&
+                    formData.deliverableType === preset.deliverableType
+                  const presetDeliverableDefinition = getServiceDeliverableDefinition(
+                    preset.deliverableType,
+                  )
 
                   return (
                     <button
@@ -375,15 +475,23 @@ export function CreateServiceWizard() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-semibold text-white">{preset.title}</p>
-                        <Badge
-                          variant="outline"
-                          className="border-white/10 bg-black/20 text-white/70"
-                        >
-                          {
-                            getServiceExecutionModeDefinition(preset.executionMode)
-                              .shortLabel
-                          }
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="border-white/10 bg-black/20 text-white/70"
+                          >
+                            {
+                              getServiceExecutionModeDefinition(preset.executionMode)
+                                .shortLabel
+                            }
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="border-white/10 bg-black/20 text-white/70"
+                          >
+                            {presetDeliverableDefinition.shortLabel}
+                          </Badge>
+                        </div>
                       </div>
                       <p className="mt-2 text-sm text-white/55">
                         {preset.spotlight}
@@ -472,14 +580,78 @@ export function CreateServiceWizard() {
             </div>
 
             <div className="space-y-3">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                AgentCommerce now creates the output itself for new services. Owners can review or publish AI output, but manual owner-created delivery is disabled for new listings.
+              </div>
+
+              <Label htmlFor="deliverableType">Expected Deliverable</Label>
+              <select
+                id="deliverableType"
+                value={formData.deliverableType}
+                onChange={(event) =>
+                  updateField("deliverableType", event.target.value)
+                }
+                className="flex h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none"
+              >
+                {creatableDeliverableDefinitions.map((definition) => (
+                  <option key={definition.value} value={definition.value}>
+                    {definition.label}
+                  </option>
+                ))}
+              </select>
+              <FieldError field="deliverableType" errors={createService.fieldErrors} />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                  What this service will hand off
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-white">
+                    {deliverableDefinition.label}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className="border-white/10 bg-black/20 text-white/70"
+                  >
+                    {deliverableDefinition.automationLabel}
+                  </Badge>
+                </div>
+                <p className="mt-2">{deliverableDefinition.description}</p>
+                <p className="mt-3 text-white/45">{deliverableDefinition.serviceHint}</p>
+              </div>
+
+              {comingSoonDeliverableDefinitions.length > 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                    Coming Soon Deliverables
+                  </p>
+                  <p className="mt-2">
+                    These preview beautifully in the app already, but their end-to-end AI generation runners are not live yet, so they are not available for new services.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {comingSoonDeliverableDefinitions.map((definition) => (
+                      <Badge
+                        key={definition.value}
+                        variant="outline"
+                        className="border-white/10 bg-black/20 text-white/70"
+                      >
+                        {definition.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
               <Label htmlFor="executionMode">Fulfillment Mode</Label>
               <select
                 id="executionMode"
                 value={formData.executionMode}
                 onChange={(event) => updateField("executionMode", event.target.value)}
                 className="flex h-11 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-sm text-white outline-none"
+                disabled={supportedExecutionModeDefinitions.length === 0}
               >
-                {serviceExecutionModeDefinitions.map((mode) => (
+                {supportedExecutionModeDefinitions.map((mode) => (
                   <option key={mode.value} value={mode.value}>
                     {mode.label}
                   </option>
@@ -490,10 +662,25 @@ export function CreateServiceWizard() {
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
                   How this service will run
                 </p>
-                <p className="mt-2 font-semibold text-white">
-                  {executionModeDefinition.label}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-white">
+                    {executionModeDefinition.label}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className="border-white/10 bg-black/20 text-white/70"
+                  >
+                    {deliverableDefinition.label}
+                  </Badge>
+                </div>
                 <p className="mt-2">{executionModeDefinition.description}</p>
+                <p className="mt-3 text-white/45">
+                  {deliverableDefinition.automationLevel === "ai_ready"
+                    ? "This deliverable type is already the strongest fit for live AI generation in AgentCommerce."
+                    : deliverableDefinition.automationLevel === "owner_review"
+                      ? "This deliverable type works best when AI drafts first and the owner signs off before the customer sees it."
+                      : "This deliverable type is preview-ready in the app, but it is not available for new AI-first services yet."}
+                </p>
               </div>
             </div>
 
@@ -569,6 +756,10 @@ export function CreateServiceWizard() {
             <div>
               <p className="font-semibold text-white">3. Publish checkout metadata</p>
               <p>AgentCommerce attaches the on-chain IDs and payable amount so the checkout flow can stay smooth.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-white">4. Let AI fulfill the work</p>
+              <p>New services are AI-first. Owners review or publish drafts, but they do not create the deliverable manually.</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-3">

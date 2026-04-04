@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useRef, type ChangeEvent } from "react"
 import { Info, Sparkles } from "lucide-react"
 import { WalletActionButton } from "@/components/guards"
 import { TransactionStatusPanel } from "@/components/transactions"
@@ -55,6 +55,10 @@ export function OrderNextActionCard({
   activeTransaction,
   actionNotice,
   actionWarning,
+  deliverableUploadHint,
+  onUploadDeliverables,
+  isUploadingDeliverables = false,
+  deliverableUploadError,
 }: {
   viewerRole: OrderViewerRole | null
   viewerRoleLabel: string
@@ -82,8 +86,13 @@ export function OrderNextActionCard({
   } | null
   actionNotice?: string | null
   actionWarning?: string | null
+  deliverableUploadHint?: string | null
+  onUploadDeliverables?: (files: File[]) => void | Promise<unknown>
+  isUploadingDeliverables?: boolean
+  deliverableUploadError?: string | null
 }) {
   const { isSessionActive } = useSession()
+  const deliverableFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const actionHandler = useMemo(() => {
     switch (nextAction.kind) {
@@ -105,6 +114,24 @@ export function OrderNextActionCard({
     onMarkInProgress,
     onResumeFulfillment,
   ])
+
+  const handleDeliverableFileSelection = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const fileList = event.target.files
+    if (!fileList || fileList.length === 0 || !onUploadDeliverables) {
+      return
+    }
+
+    const files = Array.from(fileList)
+    event.target.value = ""
+
+    try {
+      await onUploadDeliverables(files)
+    } catch {
+      // Upload errors are surfaced through the existing inline error state.
+    }
+  }
 
   return (
     <Card className="glass-card border-white/5">
@@ -144,13 +171,57 @@ export function OrderNextActionCard({
       <CardContent className="space-y-4">
         {nextAction.requiresDeliveryInput ? (
           <div className="grid gap-4">
+            {onUploadDeliverables ? (
+              <>
+                <input
+                  ref={deliverableFileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  onChange={(event) => {
+                    void handleDeliverableFileSelection(event)
+                  }}
+                />
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                        Deliverable Files
+                      </p>
+                      <p className="mt-2">
+                        {deliverableUploadHint ??
+                          "Upload the final customer-ready files here. AgentCommerce will attach them to this delivery and make them previewable from the order page."}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5"
+                      onClick={() => deliverableFileInputRef.current?.click()}
+                      disabled={isUploadingDeliverables}
+                    >
+                      {isUploadingDeliverables
+                        ? "Uploading..."
+                        : "Upload Deliverable"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            {deliverableUploadError ? (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                {deliverableUploadError}
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-                Delivery link
+                Primary delivery link
               </label>
               <input
                 className="h-11 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white placeholder:text-white/25"
-                placeholder="https://..."
+                placeholder="https://... or let uploads fill this automatically"
                 value={deliveryUrlInput}
                 onChange={(event) => onDeliveryUrlChange(event.target.value)}
               />

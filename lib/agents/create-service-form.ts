@@ -1,8 +1,14 @@
 import { agentCommerceConfig } from "@/lib/appchain/config"
 import {
+  SERVICE_DELIVERABLE_TYPES,
+  type ServiceDeliverableType,
+} from "@/lib/services/deliverable-profile"
+import {
   SERVICE_EXECUTION_MODES,
+  isExecutionModeSupportedForDeliverable,
   type ServiceExecutionMode,
 } from "@/lib/services/execution-mode"
+import { isServiceDeliverableAiCreatable } from "@/lib/services/deliverable-profile"
 
 export type CreateServiceFormValues = {
   agentId: string
@@ -11,6 +17,7 @@ export type CreateServiceFormValues = {
   priceAmount: string
   estimatedDeliveryMinutes: string
   executionMode: ServiceExecutionMode
+  deliverableType: ServiceDeliverableType
 }
 
 export type CreateServiceFieldErrors = Partial<
@@ -25,6 +32,7 @@ export type CreateServiceSubmission = {
   estimatedDeliveryMinutes: number | null
   payableAmount: bigint
   executionMode: ServiceExecutionMode
+  deliverableType: ServiceDeliverableType
 }
 
 export const initialCreateServiceFormValues: CreateServiceFormValues = {
@@ -34,6 +42,7 @@ export const initialCreateServiceFormValues: CreateServiceFormValues = {
   priceAmount: "",
   estimatedDeliveryMinutes: "60",
   executionMode: "text_delivery",
+  deliverableType: "document",
 }
 
 const pricePattern = /^\d+(\.\d+)?$/
@@ -90,6 +99,22 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
     errors.executionMode = "Choose how this service should be fulfilled."
   }
 
+  if (!SERVICE_DELIVERABLE_TYPES.includes(values.deliverableType)) {
+    errors.deliverableType = "Choose the expected deliverable format for this service."
+  } else if (!isServiceDeliverableAiCreatable(values.deliverableType)) {
+    errors.deliverableType =
+      "This deliverable type is preview-ready, but its full AI generation runner is not live yet."
+  } else if (
+    values.executionMode === "manual_owner_delivery" ||
+    !isExecutionModeSupportedForDeliverable(
+      values.executionMode,
+      values.deliverableType,
+    )
+  ) {
+    errors.executionMode =
+      "Choose an AI fulfillment mode that matches this deliverable type."
+  }
+
   if (Object.keys(errors).length > 0) {
     return {
       success: false as const,
@@ -123,6 +148,7 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
         : null,
       payableAmount,
       executionMode: values.executionMode,
+      deliverableType: values.deliverableType,
     } satisfies CreateServiceSubmission,
   }
 }

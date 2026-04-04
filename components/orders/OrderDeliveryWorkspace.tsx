@@ -7,6 +7,7 @@ import {
   Box,
   Clock3,
   Database,
+  Download,
   Eye,
   ExternalLink,
   FileStack,
@@ -32,6 +33,7 @@ import {
   DeliverablePreviewDialog,
   inferPreviewAssetType,
 } from "@/components/deliverables/DeliverablePreviewDialog"
+import { DocumentAssetPreview } from "@/components/deliverables/DocumentAssetPreview"
 import { ModelAssetPreview } from "@/components/deliverables/ModelAssetPreview"
 import { PresentationAssetPreview } from "@/components/deliverables/PresentationAssetPreview"
 import { WeightsAssetPreview } from "@/components/deliverables/WeightsAssetPreview"
@@ -41,6 +43,11 @@ import type {
   OrderRevisionRequest,
   OrderStatus,
 } from "@/lib/api/types"
+import {
+  buildDeliverableDownloadUrl,
+  buildDeliverablePreviewUrl,
+  inferDeliverableFileName,
+} from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
 type DeliveryBlock =
@@ -424,15 +431,87 @@ function getUrlFormatLabel(url: string) {
   return match?.[1]?.toUpperCase() ?? "FILE"
 }
 
+function buildPreviewHref(input: {
+  url: string | null | undefined
+  fileName?: string | null
+  formatLabel?: string | null
+}) {
+  return buildDeliverablePreviewUrl(input.url, {
+    fileName: input.fileName,
+    formatLabel: input.formatLabel,
+  })
+}
+
+function buildDownloadHref(input: {
+  url: string | null | undefined
+  fileName?: string | null
+  formatLabel?: string | null
+  title?: string | null
+}) {
+  return buildDeliverableDownloadUrl(input.url, {
+    fileName: input.fileName,
+    formatLabel: input.formatLabel,
+  })
+}
+
+function resolveDownloadFileName(input: {
+  url: string | null | undefined
+  fileName?: string | null
+  formatLabel?: string | null
+  title?: string | null
+}) {
+  return inferDeliverableFileName({
+    url: input.url,
+    fileName: input.fileName,
+    fallbackTitle: input.title,
+    formatLabel: input.formatLabel,
+  })
+}
+
+function looksLikeFileName(value: string | null | undefined) {
+  return Boolean(value && /\.[a-z0-9]{2,8}$/i.test(value.trim()))
+}
+
+function extractLinkedAssets(value: string | null | undefined) {
+  if (!value) {
+    return []
+  }
+
+  const links: Array<{ title: string; url: string; fileName: string | null }> = []
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
+  let match = pattern.exec(value)
+
+  while (match) {
+    const title = match[1]?.trim()
+    const url = match[2]?.trim()
+
+    if (title && url) {
+      links.push({
+        title,
+        url,
+        fileName: looksLikeFileName(title) ? title : null,
+      })
+    }
+
+    match = pattern.exec(value)
+  }
+
+  return links
+}
+
 function InlineDeliveryHero({
   title,
   url,
+  fileName,
+  formatLabel,
   description,
   type,
   onPreview,
 }: {
   title: string
   url: string
+  fileName?: string | null
+  formatLabel?: string
   description: string | null
   type:
     | "document"
@@ -449,21 +528,22 @@ function InlineDeliveryHero({
     | "audio"
   onPreview: () => void
 }) {
+  const resolvedFormatLabel = formatLabel ?? getUrlFormatLabel(fileName ?? url)
+  const previewAssetUrl =
+    buildPreviewHref({
+      url,
+      fileName,
+      formatLabel: resolvedFormatLabel,
+    }) ?? url
+
   if (type === "design") {
     return (
-      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black">
-        <div className="relative">
-          <img
-            src={url}
-            alt={title}
-            className="h-[420px] w-full object-cover"
-          />
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-6 py-6">
-            <div>
-              <p className="text-lg font-semibold text-white">{title}</p>
-              <p className="mt-1 text-sm text-white/55">
-                Design preview is visible inline. Open the modal for a cleaner focused view.
-              </p>
+      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
+        <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#080808]">
+          <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-5 py-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/50">
+              <ImageIcon className="h-4 w-4 text-pink-300" />
+              Design preview
             </div>
             <Button
               type="button"
@@ -473,6 +553,13 @@ function InlineDeliveryHero({
               <Eye className="mr-2 h-4 w-4" />
               Preview
             </Button>
+          </div>
+          <div className="flex min-h-[420px] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_45%),#070707] p-5">
+            <img
+              src={previewAssetUrl}
+              alt={title}
+              className="max-h-[420px] w-full rounded-[18px] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+            />
           </div>
         </div>
       </div>
@@ -486,7 +573,7 @@ function InlineDeliveryHero({
           controls
           preload="metadata"
           className="h-[420px] w-full bg-black object-contain"
-          src={url}
+          src={previewAssetUrl}
         />
       </div>
     )
@@ -505,7 +592,7 @@ function InlineDeliveryHero({
               {description ?? "This audio delivery is ready to review inline or open in the focused preview modal."}
             </p>
           </div>
-          <audio controls preload="metadata" className="w-full" src={url} />
+          <audio controls preload="metadata" className="w-full" src={previewAssetUrl} />
           <Button type="button" variant="outline" className="border-white/10 bg-white/5" onClick={onPreview}>
             <Eye className="mr-2 h-4 w-4" />
             Open focused preview
@@ -518,7 +605,13 @@ function InlineDeliveryHero({
   if (type === "model") {
     return (
       <div className="space-y-4">
-        <ModelAssetPreview url={url} title={title} formatLabel={getUrlFormatLabel(url)} compact />
+        <ModelAssetPreview
+          url={previewAssetUrl}
+          title={title}
+          fileName={fileName}
+          formatLabel={resolvedFormatLabel}
+          compact
+        />
         <div className="flex justify-end">
           <Button type="button" variant="outline" className="border-white/10 bg-white/5" onClick={onPreview}>
             <Eye className="mr-2 h-4 w-4" />
@@ -533,9 +626,10 @@ function InlineDeliveryHero({
     return (
       <div className="space-y-4">
         <PresentationAssetPreview
-          url={url}
+          url={previewAssetUrl}
           title={title}
-          formatLabel={getUrlFormatLabel(url)}
+          fileName={fileName}
+          formatLabel={resolvedFormatLabel}
           compact
         />
         <div className="flex justify-end">
@@ -561,7 +655,7 @@ function InlineDeliveryHero({
             Focus
           </Button>
         </div>
-        <iframe title={`${title} deployment`} src={url} className="h-[460px] w-full bg-white" />
+        <iframe title={`${title} deployment`} src={previewAssetUrl} className="h-[460px] w-full bg-white" />
       </div>
     )
   }
@@ -569,7 +663,13 @@ function InlineDeliveryHero({
   if (type === "weights") {
     return (
       <div className="space-y-4">
-        <WeightsAssetPreview url={url} title={title} formatLabel={getUrlFormatLabel(url)} compact />
+        <WeightsAssetPreview
+          url={previewAssetUrl}
+          title={title}
+          fileName={fileName}
+          formatLabel={resolvedFormatLabel}
+          compact
+        />
         <div className="flex justify-end">
           <Button type="button" variant="outline" className="border-white/10 bg-white/5" onClick={onPreview}>
             <Eye className="mr-2 h-4 w-4" />
@@ -580,7 +680,7 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "document" && getUrlFormatLabel(url).toLowerCase() === "pdf") {
+  if (type === "document" && resolvedFormatLabel.toLowerCase() === "pdf") {
     return (
       <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white">
         <div className="flex items-center justify-between border-b border-black/10 px-5 py-3">
@@ -593,86 +693,63 @@ function InlineDeliveryHero({
             Focus
           </Button>
         </div>
-        <iframe title={`${title} inline preview`} src={url} className="h-[460px] w-full" />
+        <iframe title={`${title} inline preview`} src={previewAssetUrl} className="h-[460px] w-full" />
       </div>
     )
   }
 
-  const meta = {
-    document: {
-      icon: FileText,
-      title: "Document delivery",
-      accent: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-    },
-    code: {
-      icon: FileText,
-      title: "Code package",
-      accent: "border-purple-500/20 bg-purple-500/10 text-purple-300",
-    },
-    contract: {
-      icon: ScrollText,
-      title: "Smart contract delivery",
-      accent: "border-amber-500/20 bg-amber-500/10 text-amber-300",
-    },
-    data: {
-      icon: Database,
-      title: "Data export",
-      accent: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    },
-    spreadsheet: {
-      icon: Table2,
-      title: "Spreadsheet delivery",
-      accent: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
-    },
-    presentation: {
-      icon: Presentation,
-      title: "Presentation delivery",
-      accent: "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300",
-    },
-    model: {
-      icon: Box,
-      title: "3D model delivery",
-      accent: "border-violet-500/20 bg-violet-500/10 text-violet-300",
-    },
-    deployment: {
-      icon: Globe,
-      title: "Web deployment delivery",
-      accent: "border-sky-500/20 bg-sky-500/10 text-sky-300",
-    },
-    weights: {
-      icon: Bot,
-      title: "Model weights delivery",
-      accent: "border-rose-500/20 bg-rose-500/10 text-rose-300",
-    },
-    video: {
-      icon: Video,
-      title: "Video delivery",
-      accent: "border-orange-500/20 bg-orange-500/10 text-orange-300",
-    },
-    audio: {
-      icon: Music,
-      title: "Audio delivery",
-      accent: "border-yellow-500/20 bg-yellow-500/10 text-yellow-300",
-    },
-    design: {
-      icon: ImageIcon,
-      title: "Design delivery",
-      accent: "border-pink-500/20 bg-pink-500/10 text-pink-300",
-    },
-  }[type]
+  if (type === "document") {
+    return (
+      <DocumentAssetPreview
+        url={previewAssetUrl}
+        title={title}
+        fileName={fileName}
+        formatLabel={resolvedFormatLabel}
+        description={description}
+        compact
+      />
+    )
+  }
 
-  const Icon = meta.icon
+  if (type === "contract" || type === "code" || type === "data" || type === "spreadsheet") {
+    return (
+      <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/50">
+            <FileText className="h-4 w-4 text-indigo-300" />
+            {type === "contract"
+              ? "Structured contract preview"
+              : type === "spreadsheet"
+                ? "Structured spreadsheet preview"
+                : type === "data"
+                  ? "Structured data preview"
+                  : "Structured code preview"}
+          </div>
+          <Button type="button" variant="outline" className="border-white/10 bg-white/5" onClick={onPreview}>
+            <Eye className="mr-2 h-4 w-4" />
+            Focus
+          </Button>
+        </div>
+        <div className="rounded-[22px] border border-white/8 bg-black/25 p-6">
+          <p className="text-base font-semibold text-white">{title}</p>
+          <p className="mt-3 text-sm leading-7 text-white/55">
+            {description ?? "This delivery is ready to inspect in the focused preview dialog or download as the original file."}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-8">
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
         <div className="space-y-5">
-          <div className={cn("inline-flex h-12 w-12 items-center justify-center rounded-2xl border", meta.accent)}>
-            <Icon className="h-5 w-5" />
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-300">
+            <FileText className="h-5 w-5" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/30">
-              {meta.title}
+              Delivery preview
             </p>
             <h3 className="mt-3 text-3xl font-display font-bold text-white">{title}</h3>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
@@ -701,13 +778,7 @@ function InlineDeliveryHero({
             </Link>
           </div>
           <p className="mt-4 text-xs leading-6 text-white/35">
-            {type === "code"
-              ? "Use focused preview for a cleaner code read, then open or download the full package."
-              : type === "contract"
-                ? "Open the focused preview to inspect the smart contract handoff more clearly before downloading the full source."
-              : type === "data" || type === "spreadsheet"
-                ? "Review the exported dataset from a cleaner modal, then open the full file if needed."
-                : "Use the focused modal for a cleaner inspection before opening the full file."}
+            Use the focused modal for a cleaner inspection before opening the full file.
           </p>
         </div>
       </div>
@@ -776,6 +847,61 @@ export function OrderDeliveryWorkspace({
   const activeRevisionCount = revisionRequests.filter(
     (revision) => revision.status === "OPEN" || revision.status === "ADDRESSING",
   ).length
+  const currentDeliveryLinks = useMemo(
+    () => extractLinkedAssets(deliveryText),
+    [deliveryText],
+  )
+  const primaryDeliveryAsset = useMemo(
+    () =>
+      currentDeliveryLinks.find((asset) => asset.url === deliveryUrl) ??
+      currentDeliveryLinks[0] ??
+      null,
+    [currentDeliveryLinks, deliveryUrl],
+  )
+  const primaryDeliveryFormatLabel = useMemo(
+    () => getUrlFormatLabel(primaryDeliveryAsset?.fileName ?? deliveryUrl ?? ""),
+    [deliveryUrl, primaryDeliveryAsset?.fileName],
+  )
+  const primaryDeliveryType = useMemo(
+    () =>
+      deliveryUrl
+        ? inferPreviewAssetType({
+            previewUrl: deliveryUrl,
+            downloadUrl: deliveryUrl,
+            fileName: primaryDeliveryAsset?.fileName ?? null,
+            formatLabel: primaryDeliveryFormatLabel,
+            title:
+              primaryDeliveryAsset?.title ??
+              serviceTitle ??
+              "Final delivery",
+          })
+        : null,
+    [deliveryUrl, primaryDeliveryAsset?.fileName, primaryDeliveryAsset?.title, primaryDeliveryFormatLabel, serviceTitle],
+  )
+  const primaryDeliveryDownloadHref = useMemo(
+    () =>
+      buildDownloadHref({
+        url: deliveryUrl,
+        fileName: primaryDeliveryAsset?.fileName ?? null,
+        formatLabel: primaryDeliveryFormatLabel,
+        title:
+          primaryDeliveryAsset?.title ??
+          (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
+      }),
+    [deliveryUrl, primaryDeliveryAsset?.fileName, primaryDeliveryAsset?.title, primaryDeliveryFormatLabel, serviceTitle],
+  )
+  const primaryDeliveryDownloadFileName = useMemo(
+    () =>
+      resolveDownloadFileName({
+        url: deliveryUrl,
+        fileName: primaryDeliveryAsset?.fileName ?? null,
+        formatLabel: primaryDeliveryFormatLabel,
+        title:
+          primaryDeliveryAsset?.title ??
+          (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
+      }),
+    [deliveryUrl, primaryDeliveryAsset?.fileName, primaryDeliveryAsset?.title, primaryDeliveryFormatLabel, serviceTitle],
+  )
   const defaultTab = hasDelivery
     ? "delivery"
     : deliveryVersions.length > 0
@@ -785,18 +911,21 @@ export function OrderDeliveryWorkspace({
   const openPreview = ({
     title,
     url,
+    fileName,
+    formatLabel,
     description,
     sourceLabel,
     dateLabel,
   }: {
     title: string
     url: string
+    fileName?: string | null
+    formatLabel?: string | null
     description: string | null
     sourceLabel: string
     dateLabel: string | null
   }) => {
-    const formatMatch = /\.([a-z0-9]+)(?:$|\?)/i.exec(url)
-    const formatLabel = formatMatch?.[1]?.toUpperCase() ?? "FILE"
+    const resolvedFormatLabel = formatLabel ?? getUrlFormatLabel(fileName ?? url)
 
     setPreviewItem({
       title,
@@ -804,12 +933,14 @@ export function OrderDeliveryWorkspace({
       type: inferPreviewAssetType({
         previewUrl: url,
         downloadUrl: url,
-        formatLabel,
+        fileName,
+        formatLabel: resolvedFormatLabel,
         title,
       }),
-      formatLabel,
+      formatLabel: resolvedFormatLabel,
       previewUrl: url,
       downloadUrl: url,
+      fileName,
       subtitle: serviceTitle,
       agentName,
       sourceLabel,
@@ -879,8 +1010,14 @@ export function OrderDeliveryWorkspace({
                     className="rounded-full border-white/10 bg-white/5 text-xs font-semibold text-white/78 hover:bg-white/10 hover:text-white"
                     onClick={() =>
                       openPreview({
-                        title: serviceTitle ? `${serviceTitle} delivery` : "Final delivery",
+                        title:
+                          primaryDeliveryAsset?.title ??
+                          (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
                         url: deliveryUrl,
+                        fileName: primaryDeliveryAsset?.fileName ?? null,
+                        formatLabel: getUrlFormatLabel(
+                          primaryDeliveryAsset?.fileName ?? deliveryUrl,
+                        ),
                         description: deliveryText ?? null,
                         sourceLabel: "Current delivery",
                         dateLabel: formatTimestamp(deliveredAt),
@@ -890,15 +1027,26 @@ export function OrderDeliveryWorkspace({
                     <Eye className="mr-2 h-3.5 w-3.5" />
                     Preview Delivery
                   </Button>
-                  <Link
-                    href={deliveryUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Open Delivery
-                  </Link>
+                  {primaryDeliveryType === "deployment" ? (
+                    <Link
+                      href={deliveryUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open Delivery
+                    </Link>
+                  ) : primaryDeliveryDownloadHref ? (
+                    <a
+                      href={primaryDeliveryDownloadHref}
+                      download={primaryDeliveryDownloadFileName}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download Delivery
+                    </a>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -957,19 +1105,38 @@ export function OrderDeliveryWorkspace({
               <>
                 {deliveryUrl ? (
                   <InlineDeliveryHero
-                    title={serviceTitle ? `${serviceTitle} delivery` : "Final delivery"}
+                    title={
+                      primaryDeliveryAsset?.title ??
+                      (serviceTitle ? `${serviceTitle} delivery` : "Final delivery")
+                    }
                     url={deliveryUrl}
+                    fileName={primaryDeliveryAsset?.fileName ?? null}
+                    formatLabel={getUrlFormatLabel(
+                      primaryDeliveryAsset?.fileName ?? deliveryUrl,
+                    )}
                     description={deliveryText ?? null}
                     type={inferPreviewAssetType({
                       previewUrl: deliveryUrl,
                       downloadUrl: deliveryUrl,
-                      formatLabel: getUrlFormatLabel(deliveryUrl),
-                      title: serviceTitle ?? "Final delivery",
+                      fileName: primaryDeliveryAsset?.fileName ?? null,
+                      formatLabel: getUrlFormatLabel(
+                        primaryDeliveryAsset?.fileName ?? deliveryUrl,
+                      ),
+                      title:
+                        primaryDeliveryAsset?.title ??
+                        serviceTitle ??
+                        "Final delivery",
                     })}
                     onPreview={() =>
                       openPreview({
-                        title: serviceTitle ? `${serviceTitle} delivery` : "Final delivery",
+                        title:
+                          primaryDeliveryAsset?.title ??
+                          (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
                         url: deliveryUrl,
+                        fileName: primaryDeliveryAsset?.fileName ?? null,
+                        formatLabel: getUrlFormatLabel(
+                          primaryDeliveryAsset?.fileName ?? deliveryUrl,
+                        ),
                         description: deliveryText ?? null,
                         sourceLabel: "Current delivery",
                         dateLabel: formatTimestamp(deliveredAt),
@@ -993,8 +1160,14 @@ export function OrderDeliveryWorkspace({
                         className="border-white/10 bg-white/5"
                         onClick={() =>
                           openPreview({
-                            title: serviceTitle ? `${serviceTitle} delivery` : "Final delivery",
+                            title:
+                              primaryDeliveryAsset?.title ??
+                              (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
                             url: deliveryUrl,
+                            fileName: primaryDeliveryAsset?.fileName ?? null,
+                            formatLabel: getUrlFormatLabel(
+                              primaryDeliveryAsset?.fileName ?? deliveryUrl,
+                            ),
                             description: deliveryText ?? null,
                             sourceLabel: "Current delivery",
                             dateLabel: formatTimestamp(deliveredAt),
@@ -1005,15 +1178,122 @@ export function OrderDeliveryWorkspace({
                         Preview
                       </Button>
                     </div>
-                    <Link
-                      href={deliveryUrl}
-                      target="_blank"
-                      rel="noreferrer"
+                    <a
+                      href={
+                        primaryDeliveryType === "deployment"
+                          ? deliveryUrl
+                          : (primaryDeliveryDownloadHref ?? deliveryUrl)
+                      }
+                      target={primaryDeliveryType === "deployment" ? "_blank" : undefined}
+                      rel={primaryDeliveryType === "deployment" ? "noreferrer" : undefined}
+                      download={
+                        primaryDeliveryType === "deployment"
+                          ? undefined
+                          : (primaryDeliveryDownloadFileName ?? undefined)
+                      }
                       className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-indigo-300 underline decoration-indigo-500/40 underline-offset-4 transition hover:text-indigo-200"
                     >
-                      <ExternalLink className="h-4 w-4" />
-                      {deliveryUrl}
-                    </Link>
+                      {primaryDeliveryType === "deployment" ? (
+                        <ExternalLink className="h-4 w-4" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      {primaryDeliveryAsset?.fileName ?? deliveryUrl}
+                    </a>
+                  </div>
+                ) : null}
+
+                {currentDeliveryLinks.length > 0 ? (
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
+                    <div className="mb-4 flex items-center gap-2 text-white/72">
+                      <PackageCheck className="h-4 w-4 text-indigo-300" />
+                      <span className="text-[11px] font-bold uppercase tracking-[0.2em]">
+                        Linked Deliverable Files
+                      </span>
+                    </div>
+                    <div className="grid gap-3">
+                      {currentDeliveryLinks.map((asset) => (
+                        (() => {
+                          const assetFormatLabel = getUrlFormatLabel(asset.fileName ?? asset.url)
+                          const assetType = inferPreviewAssetType({
+                            previewUrl: asset.url,
+                            downloadUrl: asset.url,
+                            fileName: asset.fileName,
+                            formatLabel: assetFormatLabel,
+                            title: asset.title,
+                          })
+                          const assetDownloadHref = buildDownloadHref({
+                            url: asset.url,
+                            fileName: asset.fileName,
+                            formatLabel: assetFormatLabel,
+                            title: asset.title,
+                          })
+                          const assetDownloadFileName = resolveDownloadFileName({
+                            url: asset.url,
+                            fileName: asset.fileName,
+                            formatLabel: assetFormatLabel,
+                            title: asset.title,
+                          })
+
+                          return (
+                            <div
+                              key={asset.url}
+                              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-4 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-white">
+                                  {asset.title}
+                                </p>
+                                <p className="mt-1 truncate text-xs text-white/45">
+                                  {asset.url}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="border-white/10 bg-white/5"
+                                  onClick={() =>
+                                    openPreview({
+                                      title: asset.title,
+                                      url: asset.url,
+                                      fileName: asset.fileName,
+                                      formatLabel: assetFormatLabel,
+                                      description: deliveryText ?? null,
+                                      sourceLabel: "Current delivery file",
+                                      dateLabel: formatTimestamp(deliveredAt),
+                                    })
+                                  }
+                                >
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Preview
+                                </Button>
+                                {assetType === "deployment" ? (
+                                  <Link
+                                    href={asset.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    Open
+                                  </Link>
+                                ) : assetDownloadHref ? (
+                                  <a
+                                    href={assetDownloadHref}
+                                    download={assetDownloadFileName}
+                                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
+                          )
+                        })()
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 
@@ -1057,6 +1337,43 @@ export function OrderDeliveryWorkspace({
                   const linkedRevision = revisionRequests.find(
                     (revision) => revision.id === version.revisionRequestId,
                   )
+                  const versionLinkedAssets = extractLinkedAssets(version.deliveryText)
+                  const primaryVersionAsset =
+                    versionLinkedAssets.find(
+                      (asset) => asset.url === version.deliveryUrl,
+                    ) ??
+                    versionLinkedAssets[0] ??
+                    null
+                  const versionFormatLabel = getUrlFormatLabel(
+                    primaryVersionAsset?.fileName ?? version.deliveryUrl ?? "",
+                  )
+                  const versionType = version.deliveryUrl
+                    ? inferPreviewAssetType({
+                        previewUrl: version.deliveryUrl,
+                        downloadUrl: version.deliveryUrl,
+                        fileName: primaryVersionAsset?.fileName ?? null,
+                        formatLabel: versionFormatLabel,
+                        title:
+                          primaryVersionAsset?.title ??
+                          `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
+                      })
+                    : null
+                  const versionDownloadHref = buildDownloadHref({
+                    url: version.deliveryUrl,
+                    fileName: primaryVersionAsset?.fileName ?? null,
+                    formatLabel: versionFormatLabel,
+                    title:
+                      primaryVersionAsset?.title ??
+                      `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
+                  })
+                  const versionDownloadFileName = resolveDownloadFileName({
+                    url: version.deliveryUrl,
+                    fileName: primaryVersionAsset?.fileName ?? null,
+                    formatLabel: versionFormatLabel,
+                    title:
+                      primaryVersionAsset?.title ??
+                      `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
+                  })
 
                   return (
                     <div
@@ -1104,8 +1421,12 @@ export function OrderDeliveryWorkspace({
                               className="rounded-full border-white/10 bg-white/5 text-xs font-semibold text-white/78 hover:bg-white/10 hover:text-white"
                               onClick={() =>
                                 openPreview({
-                                  title: `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
+                                  title:
+                                    primaryVersionAsset?.title ??
+                                    `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
                                   url: version.deliveryUrl!,
+                                  fileName: primaryVersionAsset?.fileName ?? null,
+                                  formatLabel: versionFormatLabel,
                                   description: version.deliveryText ?? null,
                                   sourceLabel: `Version ${version.versionNumber}`,
                                   dateLabel: formatTimestamp(version.createdAt),
@@ -1115,15 +1436,26 @@ export function OrderDeliveryWorkspace({
                               <Eye className="mr-2 h-3.5 w-3.5" />
                               Preview
                             </Button>
-                            <Link
-                              href={version.deliveryUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              Open Version
-                            </Link>
+                            {versionType === "deployment" ? (
+                              <Link
+                                href={version.deliveryUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Open Version
+                              </Link>
+                            ) : versionDownloadHref ? (
+                              <a
+                                href={versionDownloadHref}
+                                download={versionDownloadFileName}
+                                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Download Version
+                              </a>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

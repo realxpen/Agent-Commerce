@@ -6,6 +6,7 @@ import {
   getServiceExecutionContextFromTaskInput,
   type ServiceExecutionMode,
 } from "../modules/services/service-execution.js";
+import { getServiceDeliverablePromptInstruction } from "../modules/services/service-deliverables.js";
 import { createGeneratedArtifact } from "../modules/artifacts/artifacts.service.js";
 import type { GeneratedArtifactDto } from "../modules/artifacts/artifacts.types.js";
 import { getUploadedFileBuffer } from "../modules/uploads/uploads.service.js";
@@ -344,6 +345,7 @@ function renderServiceFulfillmentDeliveryText(output: ServiceFulfillmentOutput) 
 function buildManualFulfillmentOutput(
   taskRun: TaskRunRecord,
   executionMode: ServiceExecutionMode,
+  deliverableHint: string,
 ): ServiceFulfillmentOutput {
   const serviceTitle =
     typeof taskRun.order?.serviceTitleSnapshot === "string" &&
@@ -363,6 +365,7 @@ function buildManualFulfillmentOutput(
       `This order uses the ${executionMode} flow.`,
       "Customer payment is secured, and the agent owner should continue the work manually from the order page.",
       reviewMessage,
+      deliverableHint,
     ].join(" "),
     customerMessage:
       "The order is now in the owner fulfillment queue. The final delivery will be attached manually.",
@@ -550,6 +553,7 @@ export async function executeTaskRunWithLlm(taskRun: TaskRunRecord) {
     const normalizedOutput = buildManualFulfillmentOutput(
       effectiveTaskRun,
       execution.mode,
+      getServiceDeliverablePromptInstruction(execution.deliverableType),
     );
 
     return {

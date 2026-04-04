@@ -13,6 +13,14 @@ import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
 import { getPrimaryIndexedIdFromReceipt } from "@/lib/contracts/receipts"
 import type { Hex, TransactionReceipt } from "@/lib/contracts/types"
 import { buildPaymentRecoveryInput } from "@/lib/orders/payment-recovery"
+import {
+  getServiceDeliverableDefinition,
+  getServiceDeliverableType,
+} from "@/lib/services/deliverable-profile"
+import {
+  getServiceExecutionMode,
+  type ServiceExecutionMode,
+} from "@/lib/services/execution-mode"
 import type {
   DeliveryStatus,
   OrderDto,
@@ -86,6 +94,37 @@ function createEmptyRevisionReference(): OrderReference {
     url: "",
     note: null,
   }
+}
+
+function appendUploadedDeliverableLinks(
+  currentValue: string,
+  uploads: OrderReference[],
+) {
+  const uniqueUploads = uploads.filter(
+    (upload) => upload.url && !currentValue.includes(`](${upload.url})`),
+  )
+
+  if (uniqueUploads.length === 0) {
+    return currentValue
+  }
+
+  const linkLines = uniqueUploads.map((upload) => {
+    const label = upload.fileName ?? upload.label
+    return `- [${label}](${upload.url})`
+  })
+
+  const trimmed = currentValue.trim()
+  const sectionHeading = "## Deliverable Files"
+
+  if (!trimmed) {
+    return `${sectionHeading}\n\n${linkLines.join("\n")}`
+  }
+
+  if (trimmed.includes(sectionHeading)) {
+    return `${trimmed}\n${linkLines.join("\n")}`
+  }
+
+  return `${trimmed}\n\n${sectionHeading}\n\n${linkLines.join("\n")}`
 }
 
 function isValidViewerRole(value: string | null): value is OrderViewerRole {
@@ -356,6 +395,7 @@ function buildAgentOwnerNextAction(input: {
   order: OrderDto | null
   onchainOrderId: bigint | null
   activeRevision: OrderRevisionRequest | null
+  serviceExecutionMode: ServiceExecutionMode
 }): OrderNextAction {
   if (!input.order) {
     return {
@@ -388,7 +428,9 @@ function buildAgentOwnerNextAction(input: {
           "The customer payment is secured, but automated fulfillment stopped because the configured AI provider has no remaining quota.",
         ctaLabel: "Resume Fulfillment",
         helperText:
-          "Top up the current provider or swap providers, then requeue the job here. You can also complete the delivery manually right now.",
+          input.serviceExecutionMode === "manual_owner_delivery"
+            ? "Top up the current provider or swap providers, then requeue the job here. Legacy manual-delivery services can still be completed by the owner if needed."
+            : "Top up the current provider or swap providers, then requeue the job here so AgentCommerce can generate a fresh delivery.",
       }
     }
 
@@ -477,6 +519,20 @@ function buildAgentOwnerNextAction(input: {
   }
 
   if (input.order.status === "IN_PROGRESS") {
+    if (input.serviceExecutionMode !== "manual_owner_delivery") {
+      return {
+        kind: "wait_delivery",
+        title:
+          input.serviceExecutionMode === "hybrid_ai_plus_owner_review"
+            ? "AI draft is being prepared"
+            : "AI fulfillment is in progress",
+        description:
+          input.serviceExecutionMode === "hybrid_ai_plus_owner_review"
+            ? "AgentCommerce is generating the draft now. Your next owner step will be review and publish once the draft reaches the owner-review stage."
+            : "AgentCommerce is generating and delivering the output automatically. You only need to step in if a review draft or fulfillment issue appears.",
+      }
+    }
+
     if (input.onchainOrderId === null) {
       return {
         kind: "syncing",
@@ -640,6 +696,12 @@ export function useOrderDetail(options: {
     uploadError: revisionReferenceUploadError,
     uploadFiles: uploadRevisionReferenceFiles,
     clearUploadError: clearRevisionReferenceUploadError,
+  } = useOrderReferenceUploads()
+  const {
+    isUploading: isUploadingOwnerDeliverables,
+    uploadError: ownerDeliverableUploadError,
+    uploadFiles: uploadOwnerDeliverableFiles,
+    clearUploadError: clearOwnerDeliverableUploadError,
   } = useOrderReferenceUploads()
 
   const orderQuery = useOrder(orderId, {
@@ -856,6 +918,20 @@ export function useOrderDetail(options: {
       : null
   const serviceTitle = order?.service.title ?? fallbackServiceTitle ?? "Order"
   const agentName = order?.agent.name ?? fallbackAgentName ?? "AgentCommerce"
+  const serviceDeliverableDefinition = getServiceDeliverableDefinition(
+    getServiceDeliverableType(
+      (getRecord(order?.service.snapshot)?.metadata as
+        | Record<string, unknown>
+        | null
+        | undefined) ?? null,
+    ),
+  )
+  const serviceSnapshotMetadata =
+    ((getRecord(order?.service.snapshot)?.metadata as
+      | Record<string, unknown>
+      | null
+      | undefined) ?? null)
+  const serviceExecutionMode = getServiceExecutionMode(serviceSnapshotMetadata)
   const paymentStatus = order?.paymentStatus ?? ("PENDING" as OrderPaymentStatus)
   const lifecycleStatus = order?.status ?? ("PENDING" as OrderStatus)
   const deliveryStatus = order?.deliveryStatus ?? ("PENDING" as DeliveryStatus)
@@ -896,19 +972,29 @@ export function useOrderDetail(options: {
           order,
           onchainOrderId,
           activeRevision: activeRevisionRequest,
+          serviceExecutionMode,
         })
         : buildIdentityRequiredNextAction({
             order,
             pendingOnly: isPendingOnly,
             isAuthenticated: auth.isAuthenticated,
           })
-  }, [activeRevisionRequest, auth.isAuthenticated, isPendingOnly, onchainOrderId, order, viewerRole])
+  }, [
+    activeRevisionRequest,
+    auth.isAuthenticated,
+    isPendingOnly,
+    onchainOrderId,
+    order,
+    serviceExecutionMode,
+    viewerRole,
+  ])
 
   const resolvedNextAction = useMemo(() => {
     if (
       viewerRole === "agent_owner" &&
       ownerReviewDraft &&
-      nextAction.kind === "mark_delivered"
+      nextAction.kind === "mark_delivered" &&
+      serviceExecutionMode !== "manual_owner_delivery"
     ) {
       return {
         ...nextAction,
@@ -918,7 +1004,7 @@ export function useOrderDetail(options: {
     }
 
     return nextAction
-  }, [nextAction, ownerReviewDraft, viewerRole])
+  }, [nextAction, ownerReviewDraft, serviceExecutionMode, viewerRole])
 
   const markInProgress = useCallback(async () => {
     if (onchainOrderId === null) {
@@ -1120,6 +1206,33 @@ export function useOrderDetail(options: {
     [uploadRevisionReferenceFiles],
   )
 
+  const uploadOwnerDeliverables = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) {
+        return
+      }
+
+      setActionNotice(null)
+      setActionWarning(null)
+      clearOwnerDeliverableUploadError()
+      const uploadedDeliverables = await uploadOwnerDeliverableFiles(files)
+
+      if (uploadedDeliverables.length === 0) {
+        return
+      }
+
+      setDeliveryUrlInput((current) => current || uploadedDeliverables[0]?.url || "")
+      setDeliveryTextInput((current) =>
+        appendUploadedDeliverableLinks(current, uploadedDeliverables),
+      )
+      clearOwnerDeliverableUploadError()
+      setActionNotice(
+        "Uploaded deliverable files were attached to this order. Review the links below, then submit the final delivery when ready.",
+      )
+    },
+    [clearOwnerDeliverableUploadError, uploadOwnerDeliverableFiles],
+  )
+
   const requestRevision = useCallback(async () => {
     if (!order) {
       setRevisionRequestError("Order details are unavailable.")
@@ -1209,6 +1322,7 @@ export function useOrderDetail(options: {
       order.status !== "CANCELLED" &&
       (order.deliveryStatus === "AWAITING_REVIEW" || activeRevisionRequest !== null),
   )
+  const canUploadOwnerDeliverables = serviceExecutionMode === "manual_owner_delivery"
 
   const activeContractAction = useMemo(() => {
     const actionCandidates = [
@@ -1288,6 +1402,15 @@ export function useOrderDetail(options: {
     setDeliveryUrlInput,
     deliveryTextInput,
     setDeliveryTextInput,
+    canUploadOwnerDeliverables,
+    deliverableUploadHint: canUploadOwnerDeliverables
+      ? serviceDeliverableDefinition.ownerUploadHint
+      : null,
+    uploadOwnerDeliverables: canUploadOwnerDeliverables
+      ? uploadOwnerDeliverables
+      : undefined,
+    isUploadingOwnerDeliverables,
+    ownerDeliverableUploadError,
     actionNotice,
     actionWarning,
     markInProgress,

@@ -21,12 +21,14 @@ import { HeaderBackLink } from "@/components/layout/HeaderBackLink"
 import { OrderDeliveryWorkspace } from "@/components/orders/OrderDeliveryWorkspace"
 import { OrderLifecycleTimeline } from "@/components/orders/OrderLifecycleTimeline"
 import { OrderNextActionCard } from "@/components/orders/OrderNextActionCard"
+import { RevisionBriefCoach } from "@/components/orders/RevisionBriefCoach"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useOrderDetail } from "@/hooks/orders"
 import { getApiErrorMessage } from "@/lib/api"
 import type { JsonValue } from "@/lib/api/types"
+import { buildRevisionBriefCoachPlan } from "@/lib/orders/brief-coach"
 
 function isRecord(value: JsonValue | null | undefined): value is Record<string, JsonValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -137,6 +139,19 @@ export default function OrderDetailPage() {
   const serviceSummary = detail.order
     ? readServiceSummary(detail.order.service.snapshot)
     : { description: null }
+  const serviceMetadata =
+    detail.order && isRecord(detail.order.service.snapshot) && isRecord(detail.order.service.snapshot.metadata)
+      ? detail.order.service.snapshot.metadata
+      : null
+  const revisionCoachPlan = buildRevisionBriefCoachPlan({
+    serviceTitle: detail.serviceTitle,
+    serviceDescription: serviceSummary.description,
+    serviceMetadata,
+    originalCustomerNote: detail.order?.customerNote ?? null,
+    originalCustomerReferences: detail.order?.customerReferences ?? [],
+    revisionNote: detail.revisionNoteInput,
+    revisionReferences: detail.revisionReferencesInput,
+  })
 
   const handleRevisionFileSelection = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -154,6 +169,14 @@ export default function OrderDetailPage() {
     } catch {
       // Upload errors are surfaced through the existing banner state.
     }
+  }
+
+  const appendRevisionPrompt = (value: string) => {
+    const trimmedCurrent = detail.revisionNoteInput.trim()
+    const trimmedValue = value.trim()
+    detail.setRevisionNoteInput(
+      trimmedCurrent ? `${trimmedCurrent}\n\n${trimmedValue}` : trimmedValue,
+    )
   }
 
   return (
@@ -521,6 +544,26 @@ export default function OrderDetailPage() {
             onConfirmCompletion={detail.confirmCompletion}
             isResumingFulfillment={detail.isResumingFulfillment}
             activeTransaction={detail.activeContractAction}
+            deliverableUploadHint={
+              detail.canUploadOwnerDeliverables
+                ? detail.deliverableUploadHint
+                : undefined
+            }
+            onUploadDeliverables={
+              detail.canUploadOwnerDeliverables
+                ? detail.uploadOwnerDeliverables
+                : undefined
+            }
+            isUploadingDeliverables={
+              detail.canUploadOwnerDeliverables
+                ? detail.isUploadingOwnerDeliverables
+                : false
+            }
+            deliverableUploadError={
+              detail.canUploadOwnerDeliverables
+                ? detail.ownerDeliverableUploadError
+                : undefined
+            }
             actionNotice={detail.actionNotice}
             actionWarning={detail.actionWarning}
           />
@@ -630,6 +673,21 @@ export default function OrderDetailPage() {
                       placeholder="Describe exactly what should change in the delivery."
                       value={detail.revisionNoteInput}
                       onChange={(event) => detail.setRevisionNoteInput(event.target.value)}
+                    />
+
+                    <RevisionBriefCoach
+                      serviceTitle={detail.serviceTitle}
+                      serviceDescription={serviceSummary.description}
+                      serviceMetadata={serviceMetadata}
+                      originalCustomerNote={detail.order?.customerNote ?? null}
+                      originalCustomerReferences={detail.order?.customerReferences ?? []}
+                      revisionNote={detail.revisionNoteInput}
+                      revisionReferences={detail.revisionReferencesInput}
+                      onInsertPrompt={appendRevisionPrompt}
+                      onOpenUpload={() => {
+                        detail.clearRevisionReferenceUploadError()
+                        revisionFileInputRef.current?.click()
+                      }}
                     />
 
                     <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -800,13 +858,20 @@ export default function OrderDetailPage() {
 
                     <Button
                       className="w-full"
-                      disabled={detail.isRequestingRevision}
+                      disabled={
+                        detail.isRequestingRevision || !revisionCoachPlan.isCheckoutReady
+                      }
                       onClick={() => void detail.requestRevision()}
                     >
                       {detail.isRequestingRevision
                         ? "Sending revision request..."
                         : "Request Revision"}
                     </Button>
+                    {!revisionCoachPlan.isCheckoutReady ? (
+                      <p className="text-sm text-amber-200">
+                        {revisionCoachPlan.blockingMessage}
+                      </p>
+                    ) : null}
                   </>
                 ) : null}
               </CardContent>

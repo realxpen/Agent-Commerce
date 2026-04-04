@@ -10,6 +10,7 @@ import {
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 import { getApiErrorMessage, isApiError } from "@/lib/api"
 import type { AgentDto, OrderDto, TaskDto } from "@/lib/api/types"
+import { getServiceDeliverableType } from "@/lib/services/deliverable-profile"
 
 export type DashboardDeliverableType =
   | "document"
@@ -145,6 +146,43 @@ function parseMarkdownLinks(value: string | null | undefined) {
   return links
 }
 
+function looksLikeFileName(value: string | null | undefined) {
+  return Boolean(value && /\.[a-z0-9]{2,8}$/i.test(value.trim()))
+}
+
+function mapServiceDeliverableTypeToDashboardType(
+  deliverableType: ReturnType<typeof getServiceDeliverableType>,
+): DashboardDeliverableType {
+  switch (deliverableType) {
+    case "document":
+      return "document"
+    case "code":
+      return "code"
+    case "contract":
+      return "contract"
+    case "design":
+      return "design"
+    case "data":
+      return "data"
+    case "spreadsheet":
+      return "spreadsheet"
+    case "presentation":
+      return "presentation"
+    case "model":
+      return "model"
+    case "deployment":
+      return "deployment"
+    case "weights":
+      return "weights"
+    case "video":
+      return "video"
+    case "audio":
+      return "audio"
+    default:
+      return "document"
+  }
+}
+
 function summarizeText(value: string | null | undefined) {
   if (!value) {
     return null
@@ -192,6 +230,7 @@ function inferDeliverableType(input: {
   contentType?: string | null
   title?: string | null
   serviceTitle?: string | null
+  declaredType?: DashboardDeliverableType | null
 }): DashboardDeliverableType {
   const contentType = input.contentType?.toLowerCase() ?? null
 
@@ -284,6 +323,10 @@ function inferDeliverableType(input: {
     if (["pdf", "doc", "docx", "md", "txt", "rtf", "html"].includes(extension)) {
       return "document"
     }
+  }
+
+  if (input.declaredType) {
+    return input.declaredType
   }
 
   const keywordSource = [
@@ -444,54 +487,65 @@ function extractGeneratedArtifacts(task: TaskDto): CandidateAsset[] {
 
 function collectOrderAssets(order: OrderDto, tasks: TaskDto[]) {
   const candidates: CandidateAsset[] = []
+  const linkedDeliveryAssets = parseMarkdownLinks(order.delivery.text).map((link) => ({
+    id: `${order.id}:delivery:${link.url}`,
+    title: link.title,
+    url: link.url,
+    fileName: looksLikeFileName(link.title) ? link.title : null,
+    contentType: null,
+    createdAt: order.delivery.deliveredAt ?? order.updatedAt,
+    sourceLabel: "Current delivery",
+  }))
+  const primaryLinkedDeliveryAsset =
+    linkedDeliveryAssets.find((asset) => asset.url === order.delivery.url) ?? null
 
   if (order.delivery.url) {
     candidates.push({
       id: `${order.id}:delivery:current`,
-      title: `${order.service.title} delivery bundle`,
+      title:
+        primaryLinkedDeliveryAsset?.title ??
+        `${order.service.title} delivery bundle`,
       url: order.delivery.url,
-      fileName: null,
+      fileName: primaryLinkedDeliveryAsset?.fileName ?? null,
       contentType: null,
       createdAt: order.delivery.deliveredAt ?? order.updatedAt,
       sourceLabel: "Current delivery",
     })
   }
 
-  for (const link of parseMarkdownLinks(order.delivery.text)) {
-    candidates.push({
-      id: `${order.id}:delivery:${link.url}`,
-      title: link.title,
-      url: link.url,
-      fileName: null,
-      contentType: null,
-      createdAt: order.delivery.deliveredAt ?? order.updatedAt,
-      sourceLabel: "Current delivery",
-    })
+  for (const asset of linkedDeliveryAssets) {
+    candidates.push(asset)
   }
 
   for (const version of order.deliveryVersions) {
+    const versionLinkedAssets = parseMarkdownLinks(version.deliveryText).map((link) => ({
+      id: `${order.id}:version:${version.id}:${link.url}`,
+      title: link.title,
+      url: link.url,
+      fileName: looksLikeFileName(link.title) ? link.title : null,
+      contentType: null,
+      createdAt: version.createdAt,
+      sourceLabel: `Version ${version.versionNumber}`,
+    }))
+    const primaryVersionLinkedAsset =
+      versionLinkedAssets.find((asset) => asset.url === version.deliveryUrl) ?? null
+
     if (version.deliveryUrl) {
       candidates.push({
         id: `${order.id}:version:${version.id}:bundle`,
-        title: `${order.service.title} v${version.versionNumber}`,
+        title:
+          primaryVersionLinkedAsset?.title ??
+          `${order.service.title} v${version.versionNumber}`,
         url: version.deliveryUrl,
-        fileName: null,
+        fileName: primaryVersionLinkedAsset?.fileName ?? null,
         contentType: null,
         createdAt: version.createdAt,
         sourceLabel: `Version ${version.versionNumber}`,
       })
     }
 
-    for (const link of parseMarkdownLinks(version.deliveryText)) {
-      candidates.push({
-        id: `${order.id}:version:${version.id}:${link.url}`,
-        title: link.title,
-        url: link.url,
-        fileName: null,
-        contentType: null,
-        createdAt: version.createdAt,
-        sourceLabel: `Version ${version.versionNumber}`,
-      })
+    for (const asset of versionLinkedAssets) {
+      candidates.push(asset)
     }
   }
 
@@ -535,6 +589,12 @@ function buildDeliverableItems(orders: OrderDto[], tasks: TaskDto[]) {
 
     const status = getDeliverableStatus(order, relatedTasks)
     const assets = collectOrderAssets(order, relatedTasks)
+    const declaredType = mapServiceDeliverableTypeToDashboardType(
+      getServiceDeliverableType(
+        (getRecord(order.service.snapshot)?.metadata as Record<string, unknown> | null | undefined) ??
+          null,
+      ),
+    )
     const baseDescription =
       summarizeText(order.delivery.text) ??
       summarizeText(order.deliveryVersions[0]?.deliveryText) ??
@@ -549,6 +609,7 @@ function buildDeliverableItems(orders: OrderDto[], tasks: TaskDto[]) {
         type: inferDeliverableType({
           title: order.service.title,
           serviceTitle: order.service.title,
+          declaredType,
         }),
         status,
         dateLabel: formatRelativeTime(order.updatedAt),
@@ -575,6 +636,7 @@ function buildDeliverableItems(orders: OrderDto[], tasks: TaskDto[]) {
         contentType: asset.contentType,
         title: asset.title,
         serviceTitle: order.service.title,
+        declaredType,
       })
 
       items.push({

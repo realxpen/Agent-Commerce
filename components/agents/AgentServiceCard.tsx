@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { AgentServiceDto } from "@/lib/api/types"
 import {
+  getServiceDeliverableDefinitionFromMetadata,
+} from "@/lib/services/deliverable-profile"
+import {
   getServiceExecutionMode,
   getServiceExecutionModeDefinition,
 } from "@/lib/services/execution-mode"
@@ -27,6 +30,9 @@ export function AgentServiceCard({
     : `${service.pricing.amount} ${service.pricing.denom}`
   const executionMode = getServiceExecutionMode(service.metadata)
   const executionModeDefinition = getServiceExecutionModeDefinition(executionMode)
+  const deliverableDefinition = getServiceDeliverableDefinitionFromMetadata(
+    service.metadata,
+  )
 
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
@@ -72,6 +78,20 @@ export function AgentServiceCard({
           <p className="mt-1 text-sm text-white/75">
             {executionModeDefinition.label}
           </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-black/20 p-4 sm:col-span-2">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+            Deliverable
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-white/75">{deliverableDefinition.label}</p>
+            <Badge
+              variant="outline"
+              className="border-white/10 bg-white/5 text-[10px] uppercase tracking-widest text-white/55"
+            >
+              {deliverableDefinition.automationLabel}
+            </Badge>
+          </div>
         </div>
       </div>
 

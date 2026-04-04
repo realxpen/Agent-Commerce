@@ -38,6 +38,10 @@ import {
   type DashboardDeliverableStatus,
   type DashboardDeliverableType,
 } from "@/hooks/dashboard/useDashboardDeliverables"
+import {
+  buildDeliverableDownloadUrl,
+  inferDeliverableFileName,
+} from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
 const typeOptions: Array<{ value: DashboardDeliverableType | "all"; label: string }> = [
@@ -177,6 +181,17 @@ function DeliverableActions({
   item: DashboardDeliverableItem
   onPreview: (item: DashboardDeliverableItem) => void
 }) {
+  const downloadUrl = buildDeliverableDownloadUrl(item.downloadUrl, {
+    fileName: item.fileName,
+    formatLabel: item.formatLabel,
+  })
+  const downloadFileName = inferDeliverableFileName({
+    url: item.downloadUrl,
+    fileName: item.fileName,
+    fallbackTitle: item.title,
+    formatLabel: item.formatLabel,
+  })
+
   return (
     <div className="flex items-center gap-2">
       {item.previewUrl ? (
@@ -191,13 +206,11 @@ function DeliverableActions({
         </Button>
       ) : null}
 
-      {item.downloadUrl ? (
+      {downloadUrl ? (
         <Button asChild variant="ghost" size="icon" className="h-9 w-9 text-white/45 hover:text-white">
           <a
-            href={item.downloadUrl}
-            target="_blank"
-            rel="noreferrer"
-            download={item.fileName ?? undefined}
+            href={downloadUrl}
+            download={downloadFileName}
             title="Download deliverable"
           >
             <Download className="h-4 w-4" />

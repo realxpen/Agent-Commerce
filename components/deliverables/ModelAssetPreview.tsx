@@ -29,6 +29,10 @@ function getFileExtension(value: string | null | undefined) {
   return match?.[1]?.toLowerCase() ?? null
 }
 
+function normalizeFormatLabel(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? null
+}
+
 function supportsInlineModelPreview(extension: string | null) {
   return Boolean(extension && ["glb", "gltf", "obj", "fbx", "stl"].includes(extension))
 }
@@ -76,7 +80,10 @@ export function ModelAssetPreview({
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<ModelStats | null>(null)
 
-  const extension = useMemo(() => getFileExtension(fileName ?? url), [fileName, url])
+  const extension = useMemo(
+    () => getFileExtension(fileName ?? url) ?? normalizeFormatLabel(formatLabel),
+    [fileName, formatLabel, url],
+  )
   const canRenderInline = supportsInlineModelPreview(extension)
 
   if (!url) {

@@ -9,6 +9,8 @@ import {
   geminiAttachmentToPart,
 } from "./llm/providers/gemini.shared.js";
 import type { LlmProviderName } from "./llm/llm.types.js";
+import type { ServiceDeliverableType } from "../modules/services/service-deliverables.js";
+import type { ServiceExecutionMode } from "../modules/services/service-execution.js";
 
 type ToolReferenceInput = {
   type: string;
@@ -113,6 +115,51 @@ function buildLatestRevisionNote(revisions: RevisionRequestInput[]) {
   );
 
   return latest?.note ?? null;
+}
+
+function buildBestEffortFallbackGuidance(input: {
+  serviceTitle: string;
+  customerNote: string | null;
+  deliverableType?: ServiceDeliverableType;
+  executionMode?: ServiceExecutionMode;
+}) {
+  const intent = [input.serviceTitle, input.customerNote]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const looksLikeCompetitorResearch =
+    intent.includes("competitor") ||
+    intent.includes("market") ||
+    intent.includes("benchmark") ||
+    intent.includes("landscape");
+
+  if (looksLikeCompetitorResearch) {
+    return "If named competitors are missing, infer a narrow shortlist of plausible comparable competitors or adjacent products, label them as inferred comparables, and build a provisional comparison matrix instead of stopping.";
+  }
+
+  switch (input.deliverableType) {
+    case "code":
+    case "contract":
+      return "If the specs are incomplete, still produce a strong starter scaffold or draft implementation with explicit assumptions and TODO markers.";
+    case "data":
+    case "spreadsheet":
+      return "If the source material is partial, still produce a normalized schema, example output, or planning model based on the available fields and assumptions.";
+    case "design":
+      return "If the visual references are sparse, still produce one strong default concept direction and note the assumptions you made.";
+    case "presentation":
+      return "If deck materials are sparse, still produce a coherent slide outline and draft talking points.";
+    case "deployment":
+      return "If the product spec is incomplete, still produce a useful site map, launch structure, and deployment assumptions.";
+    case "video":
+    case "audio":
+      return "If source assets are sparse, still produce a first-pass script, storyboard, or delivery plan.";
+    case "weights":
+      return "If training artifacts are missing, still produce the most useful export metadata and checkpoint handoff plan possible.";
+    case "model":
+      return "If geometry references are sparse, still produce a narrow asset concept, constraints, and handoff notes.";
+    default:
+      return "If materials are sparse, still produce the strongest useful first-pass analysis or scaffold you can from the available context, with assumptions clearly stated.";
+  }
 }
 
 function isCodeExecutionUploadCandidate(reference: ToolReferenceInput) {
@@ -236,6 +283,8 @@ async function runGeminiCodeExecution(input: {
   customerNote: string | null;
   references: ToolReferenceInput[];
   revisions: RevisionRequestInput[];
+  deliverableType?: ServiceDeliverableType;
+  executionMode?: ServiceExecutionMode;
 }) {
   if (getProviderName(input.providerName) !== "gemini") {
     return null;
@@ -252,6 +301,8 @@ async function runGeminiCodeExecution(input: {
     `Analyze the structured materials for the purchased service "${input.serviceTitle}".`,
     "Use Gemini code execution when it helps with calculations, tabular analysis, transformations, or validating structured content.",
     "Work only from the provided materials. Do not browse the web or invent hidden files.",
+    "Never respond that more materials are required before you can begin. If the inputs are sparse, still produce a best-effort first pass that is useful to the agent owner.",
+    buildBestEffortFallbackGuidance(input),
     "Return a concise internal note for the agent owner in plain text.",
     input.customerNote ? `Customer brief: ${input.customerNote}` : null,
     buildLatestRevisionNote(input.revisions)
@@ -266,6 +317,7 @@ async function runGeminiCodeExecution(input: {
       text: promptSections,
     },
   ];
+  let attachedMaterialCount = 0;
 
   for (const reference of input.references.slice(0, 4)) {
     if (isCodeExecutionUploadCandidate(reference) && reference.uploadId) {
@@ -283,6 +335,7 @@ async function runGeminiCodeExecution(input: {
           buffer: uploadedFile.buffer,
         }),
       );
+      attachedMaterialCount += 1;
       continue;
     }
 
@@ -296,7 +349,14 @@ async function runGeminiCodeExecution(input: {
           .filter(Boolean)
           .join("\n"),
       });
+      attachedMaterialCount += 1;
     }
+  }
+
+  if (attachedMaterialCount === 0) {
+    parts.push({
+      text: "No structured upload previews were available. Work from the service title, brief, and revision context only, and produce the best useful first pass you can.",
+    });
   }
 
   const responseBody = await callGeminiGenerateContent({
@@ -403,6 +463,7 @@ function buildImageGenerationPrompt(input: {
     `Create one polished visual asset for the purchased service "${input.serviceTitle}".`,
     "Make it customer-ready and aligned with the brief.",
     "If reference images are provided, treat them as style or composition guidance.",
+    "If reference images are missing, choose a strong default visual direction from the service title and customer brief instead of refusing the task.",
     "Do not add watermarks, UI chrome, or extra captions unless the brief explicitly asks for them.",
     input.customerNote ? `Customer brief: ${input.customerNote}` : null,
     buildLatestRevisionNote(input.revisions)
@@ -615,6 +676,8 @@ export async function runGuardedCodeRunner(input: {
   customerNote: string | null;
   references: ToolReferenceInput[];
   revisions: RevisionRequestInput[];
+  deliverableType?: ServiceDeliverableType;
+  executionMode?: ServiceExecutionMode;
 }) {
   return runGeminiCodeExecution(input);
 }

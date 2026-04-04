@@ -27,9 +27,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DocumentAssetPreview } from "@/components/deliverables/DocumentAssetPreview"
 import { ModelAssetPreview } from "@/components/deliverables/ModelAssetPreview"
 import { PresentationAssetPreview } from "@/components/deliverables/PresentationAssetPreview"
 import { WeightsAssetPreview } from "@/components/deliverables/WeightsAssetPreview"
+import {
+  buildDeliverableDownloadUrl,
+  buildDeliverablePreviewUrl,
+  inferDeliverableFileName,
+} from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
 export type PreviewAssetType =
@@ -170,6 +176,27 @@ export function inferPreviewAssetType(input: {
   if (format === "html") {
     return "deployment"
   }
+  if (["ppt", "pptx", "odp", "key"].includes(format)) {
+    return "presentation"
+  }
+  if (["glb", "gltf", "obj", "fbx", "stl", "usdz", "blend"].includes(format)) {
+    return "model"
+  }
+  if (["bin", "safetensors", "ckpt", "pt", "pth", "onnx", "gguf"].includes(format)) {
+    return "weights"
+  }
+  if (["mp4", "webm", "mov", "avi", "mkv"].includes(format)) {
+    return "video"
+  }
+  if (["mp3", "wav", "m4a", "ogg", "aac", "flac"].includes(format)) {
+    return "audio"
+  }
+  if (["xlsx", "xls", "ods"].includes(format)) {
+    return "spreadsheet"
+  }
+  if (["sol", "rs", "move"].includes(format)) {
+    return "contract"
+  }
   if (format === "pdf" || ["doc", "docx", "md", "txt", "rtf", "html"].includes(extension ?? "")) {
     return "document"
   }
@@ -228,11 +255,7 @@ function canFetchTextPreview(item: DeliverablePreviewItem) {
     return true
   }
 
-  const extension = getPreviewExtension(item)
-  return (
-    item.type === "document" &&
-    Boolean(extension && ["md", "txt", "json", "csv", "html", "htm"].includes(extension))
-  )
+  return false
 }
 
 function formatPreviewText(rawText: string, item: DeliverablePreviewItem) {
@@ -306,9 +329,41 @@ export function DeliverablePreviewDialog({
   const [textPreview, setTextPreview] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const previewUrl = useMemo(
+    () =>
+      item
+        ? buildDeliverablePreviewUrl(item.previewUrl, {
+            fileName: item.fileName,
+            formatLabel: item.formatLabel,
+          })
+        : null,
+    [item],
+  )
+  const downloadUrl = useMemo(
+    () =>
+      item
+        ? buildDeliverableDownloadUrl(item.downloadUrl, {
+            fileName: item.fileName,
+            formatLabel: item.formatLabel,
+          })
+        : null,
+    [item],
+  )
+  const downloadFileName = useMemo(
+    () =>
+      item
+        ? inferDeliverableFileName({
+            url: item.downloadUrl ?? item.previewUrl,
+            fileName: item.fileName,
+            fallbackTitle: item.title,
+            formatLabel: item.formatLabel,
+          })
+        : null,
+    [item],
+  )
 
   useEffect(() => {
-    if (!open || !item || !canFetchTextPreview(item)) {
+    if (!open || !item || !previewUrl || !canFetchTextPreview(item)) {
       setTextPreview(null)
       setPreviewError(null)
       setIsLoadingPreview(false)
@@ -321,7 +376,7 @@ export function DeliverablePreviewDialog({
     setPreviewError(null)
     setTextPreview(null)
 
-    fetch(item.previewUrl!, {
+    fetch(previewUrl, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -348,39 +403,61 @@ export function DeliverablePreviewDialog({
       })
 
     return () => controller.abort()
-  }, [item, open])
+  }, [item, open, previewUrl])
 
   const previewContent = useMemo(() => {
     if (!item) {
       return null
     }
 
-    if (item.type === "design" && item.previewUrl) {
+    if (item.type === "document" && !isPdfPreview(item) && previewUrl) {
       return (
-        <div className="overflow-hidden rounded-[18px] border border-white/8 bg-black">
-          <img
-            src={item.previewUrl}
-            alt={item.title}
-            className="max-h-[58vh] w-full object-cover"
-          />
+        <DocumentAssetPreview
+          url={previewUrl}
+          title={item.title}
+          fileName={item.fileName}
+          formatLabel={item.formatLabel}
+          description={item.description}
+        />
+      )
+    }
+
+    if (item.type === "design" && previewUrl) {
+      return (
+        <div className="overflow-hidden rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
+          <div className="overflow-hidden rounded-[18px] border border-white/8 bg-[#080808]">
+            <div className="flex items-center justify-between border-b border-white/8 bg-white/[0.03] px-5 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                Design preview
+              </div>
+              <div className="text-xs text-white/35">{item.formatLabel}</div>
+            </div>
+            <div className="flex min-h-[340px] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_45%),#070707] p-5">
+              <img
+                src={previewUrl}
+                alt={item.title}
+                className="max-h-[52vh] w-full rounded-[16px] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+              />
+            </div>
+          </div>
         </div>
       )
     }
 
-    if (item.type === "video" && item.previewUrl) {
+    if (item.type === "video" && previewUrl) {
       return (
         <div className="overflow-hidden rounded-[18px] border border-white/8 bg-black">
           <video
             controls
             preload="metadata"
             className="max-h-[58vh] w-full bg-black"
-            src={item.previewUrl}
+            src={previewUrl}
           />
         </div>
       )
     }
 
-    if (item.type === "audio" && item.previewUrl) {
+    if (item.type === "audio" && previewUrl) {
       return (
         <div className="rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-8 py-10">
           <div className="mx-auto flex max-w-xl flex-col items-center gap-6 text-center">
@@ -393,7 +470,7 @@ export function DeliverablePreviewDialog({
                 Listen to the delivered audio sample directly here.
               </p>
             </div>
-            <audio controls preload="metadata" className="w-full" src={item.previewUrl} />
+            <audio controls preload="metadata" className="w-full" src={previewUrl} />
           </div>
         </div>
       )
@@ -402,7 +479,7 @@ export function DeliverablePreviewDialog({
     if (item.type === "model") {
       return (
         <ModelAssetPreview
-          url={item.previewUrl ?? item.downloadUrl ?? ""}
+          url={previewUrl ?? downloadUrl ?? ""}
           fileName={item.fileName}
           formatLabel={item.formatLabel}
           title={item.title}
@@ -413,7 +490,7 @@ export function DeliverablePreviewDialog({
     if (item.type === "presentation") {
       return (
         <PresentationAssetPreview
-          url={item.previewUrl ?? item.downloadUrl ?? ""}
+          url={previewUrl ?? downloadUrl ?? ""}
           fileName={item.fileName}
           formatLabel={item.formatLabel}
           title={item.title}
@@ -422,9 +499,9 @@ export function DeliverablePreviewDialog({
     }
 
     if (item.type === "deployment") {
-      return item.previewUrl ? (
+      return previewUrl ? (
         <div className="overflow-hidden rounded-[18px] border border-white/8 bg-black">
-          <iframe title={`${item.title} deployment preview`} src={item.previewUrl} className="h-[58vh] w-full bg-white" />
+          <iframe title={`${item.title} deployment preview`} src={previewUrl} className="h-[58vh] w-full bg-white" />
         </div>
       ) : (
         <div className="rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(14,165,233,0.14),rgba(255,255,255,0.02))] p-8">
@@ -446,7 +523,7 @@ export function DeliverablePreviewDialog({
     if (item.type === "weights") {
       return (
         <WeightsAssetPreview
-          url={item.previewUrl ?? item.downloadUrl ?? ""}
+          url={previewUrl ?? downloadUrl ?? ""}
           fileName={item.fileName}
           formatLabel={item.formatLabel}
           title={item.title}
@@ -454,14 +531,20 @@ export function DeliverablePreviewDialog({
       )
     }
 
-    if (isPdfPreview(item) && item.previewUrl) {
+    if (isPdfPreview(item) && previewUrl) {
       return (
-        <div className="overflow-hidden rounded-[18px] border border-white/8 bg-white">
-          <iframe
-            title={`${item.title} preview`}
-            src={item.previewUrl}
-            className="h-[58vh] w-full"
-          />
+        <div className="overflow-hidden rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
+          <div className="overflow-hidden rounded-[18px] border border-white/8 bg-white">
+            <div className="flex items-center justify-between border-b border-black/10 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-black/45">
+              <span>PDF preview</span>
+              <span>{item.formatLabel}</span>
+            </div>
+            <iframe
+              title={`${item.title} preview`}
+              src={previewUrl}
+              className="h-[58vh] w-full"
+            />
+          </div>
         </div>
       )
     }
@@ -529,7 +612,7 @@ export function DeliverablePreviewDialog({
         </p>
       </div>
     )
-  }, [isLoadingPreview, item, previewError, textPreview])
+  }, [downloadUrl, isLoadingPreview, item, previewError, previewUrl, textPreview])
 
   const metaBits = [
     item?.formatLabel || null,
@@ -590,13 +673,11 @@ export function DeliverablePreviewDialog({
                     {item.sourceLabel}
                   </Badge>
                 ) : null}
-                {item.downloadUrl ? (
+                {downloadUrl ? (
                   <Button asChild className="bg-indigo-600 text-white hover:bg-indigo-500">
                     <a
-                      href={item.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      download={item.fileName ?? undefined}
+                      href={downloadUrl}
+                      download={downloadFileName ?? undefined}
                     >
                       <Download className="mr-2 h-4 w-4" />
                       Download {item.formatLabel}

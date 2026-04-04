@@ -15,10 +15,11 @@ import {
   Video,
   Wallet,
 } from "lucide-react"
+import { CheckoutBriefCoach } from "@/components/orders/CheckoutBriefCoach"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { CheckoutContext } from "@/lib/orders/checkout"
-import type { OrderReference, OrderReferenceType } from "@/lib/api/types"
+import type { AgentServiceDto, OrderReference, OrderReferenceType } from "@/lib/api/types"
 import type { SampleOrderBrief } from "@/lib/orders/sample-order-briefs"
 
 const referenceTypeOptions: Array<{
@@ -69,6 +70,8 @@ export function CheckoutSummary({
   onReferenceFilesSelected,
   sampleBriefs,
   onApplySampleBrief,
+  service,
+  availableServices,
 }: {
   checkout: CheckoutContext
   customerNote: string
@@ -81,6 +84,8 @@ export function CheckoutSummary({
   onReferenceFilesSelected: (files: File[]) => Promise<void>
   sampleBriefs: SampleOrderBrief[]
   onApplySampleBrief: (value: string) => void
+  service?: AgentServiceDto | null
+  availableServices?: AgentServiceDto[]
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const priceLabel = checkout.currency
@@ -133,6 +138,15 @@ export function CheckoutSummary({
     } catch {
       // The upload hook exposes a friendly error banner for the user.
     }
+  }
+
+  const appendPromptToBrief = (value: string) => {
+    const trimmedCurrent = customerNote.trim()
+    const trimmedValue = value.trim()
+
+    onCustomerNoteChange(
+      trimmedCurrent ? `${trimmedCurrent}\n\n${trimmedValue}` : trimmedValue,
+    )
   }
 
   return (
@@ -188,6 +202,17 @@ export function CheckoutSummary({
             onChange={(event) => onCustomerNoteChange(event.target.value)}
             className="min-h-[140px] w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-sm placeholder:text-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all"
             placeholder="Describe what you want this agent to deliver. Clear instructions improve results."
+          />
+
+          <CheckoutBriefCoach
+            serviceTitle={checkout.serviceTitle}
+            serviceDescription={checkout.serviceDescription}
+            service={service}
+            availableServices={availableServices}
+            customerNote={customerNote}
+            customerReferences={customerReferences}
+            onInsertPrompt={appendPromptToBrief}
+            onOpenUpload={handleUploadClick}
           />
         </div>
 

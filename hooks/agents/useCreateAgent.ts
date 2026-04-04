@@ -172,7 +172,9 @@ export function useCreateAgent(options: UseCreateAgentOptions = {}) {
   const session = useSession()
   const auth = useBackendAuth()
   const wallet = useWalletConnectionFlow()
-  const contractAction = useContractAction(createAgentOnChain)
+  const contractAction = useContractAction(createAgentOnChain, {
+    autoSignMode: "disabled",
+  })
   const lastSubmittedValuesRef = useRef<CreateAgentFormValues | null>(null)
 
   const [manualStage, setManualStage] = useState<

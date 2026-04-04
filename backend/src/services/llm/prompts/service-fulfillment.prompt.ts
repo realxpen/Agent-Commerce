@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { SERVICE_EXECUTION_MODES } from "../../../modules/services/service-execution.js";
+import {
+  SERVICE_DELIVERABLE_TYPES,
+  getServiceDeliverablePromptInstruction,
+} from "../../../modules/services/service-deliverables.js";
 import { TASK_TOOL_NAMES } from "../llm.types.js";
 import type { PromptBuildContext, TaskPromptDefinition } from "./types.js";
 
@@ -69,6 +73,7 @@ const serviceFulfillmentInputSchema = z.object({
     attemptNumber: z.number().int().positive(),
     createdAt: z.string().min(1),
     mode: z.enum(SERVICE_EXECUTION_MODES).default("text_delivery"),
+    deliverableType: z.enum(SERVICE_DELIVERABLE_TYPES).default("document"),
     ownerReviewRequired: z.boolean().default(false),
     autoDelivery: z.boolean().default(true),
   }),
@@ -185,6 +190,40 @@ export const serviceFulfillmentOutputJsonSchema = {
   additionalProperties: false,
 } satisfies Record<string, unknown>;
 
+function buildSparseInputFallbackInstruction(input: {
+  serviceTitle: string;
+  deliverableType: z.infer<typeof serviceFulfillmentInputSchema>["execution"]["deliverableType"];
+}) {
+  const serviceTitle = input.serviceTitle.toLowerCase();
+  const looksLikeCompetitorResearch =
+    serviceTitle.includes("competitor") ||
+    serviceTitle.includes("market") ||
+    serviceTitle.includes("landscape") ||
+    serviceTitle.includes("benchmark");
+
+  if (looksLikeCompetitorResearch) {
+    return "If the customer did not name exact competitors, infer a narrow shortlist of plausible comparable competitors or adjacent products from the service title and brief, clearly label them as inferred comparables, and proceed with a provisional comparison instead of stopping.";
+  }
+
+  switch (input.deliverableType) {
+    case "code":
+    case "contract":
+      return "If implementation details are sparse, still produce a clean starter implementation with explicit assumptions, TODOs, and safe defaults.";
+    case "design":
+      return "If visual references are sparse, still produce a strong default concept, articulate the creative direction, and mark subjective assumptions clearly.";
+    case "data":
+    case "spreadsheet":
+      return "If the dataset is partial, still produce a normalized first-pass output, example schema, or planning model using the available fields and explicit assumptions.";
+    case "presentation":
+      return "If slide materials are sparse, still produce a deck-ready outline with draft headlines, talking points, and narrative flow.";
+    case "video":
+    case "audio":
+      return "If source assets are sparse, still produce a first-pass script, storyboard, or delivery direction that the next revision can refine.";
+    default:
+      return "If the brief is sparse, still deliver the strongest useful first pass from the available context, with assumptions clearly labeled instead of blocking on more materials.";
+  }
+}
+
 export function buildServiceFulfillmentPrompt(
   context: PromptBuildContext,
 ): TaskPromptDefinition<ServiceFulfillmentOutput> {
@@ -206,6 +245,9 @@ export function buildServiceFulfillmentPrompt(
         return "This service is in text_delivery mode. Produce a customer-ready delivery that can be attached directly if the workflow allows auto-delivery.";
     }
   })();
+  const deliverableInstructions = getServiceDeliverablePromptInstruction(
+    input.execution.deliverableType,
+  );
 
   return {
     promptKind: "service_fulfillment",
@@ -222,13 +264,21 @@ export function buildServiceFulfillmentPrompt(
       "If toolContext is present, use it as grounded support material.",
       "If a tool result or tool artifact is absent, do not imply it existed.",
       "If there is an OPEN or ADDRESSING revision request, update the existing delivery to satisfy the latest revision note.",
+      "Do not collapse into a 'data required' or 'cannot proceed' response only because the attachments are sparse.",
+      "Always deliver the strongest useful first pass you can from the service title, customer brief, revision context, service metadata, and any grounded tool output that exists.",
+      "Use followUpQuestions only to improve the next revision, not as a reason to skip the current delivery.",
       modeInstructions,
+      deliverableInstructions,
+      buildSparseInputFallbackInstruction({
+        serviceTitle: input.serviceTitle,
+        deliverableType: input.execution.deliverableType,
+      }),
       "Focus only on the purchased service work and the deliverable itself.",
       "Return only JSON that matches the supplied schema.",
     ].join(" "),
     userPrompt: [
       `Fulfill the purchased service "${input.serviceTitle}" for order ${input.orderId}.`,
-      "Use the context below. If details are missing, make a safe reasonable assumption and mention it in the summary or customer message.",
+      "Use the context below. If details are missing, make a safe reasonable assumption, continue with a narrower but still useful result, and mention the assumptions in the summary or customer message.",
       additionalInstructions,
       JSON.stringify(
         {

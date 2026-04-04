@@ -1,4 +1,9 @@
 import type { JsonValue } from "@/lib/api/types"
+import {
+  getServiceDeliverableDefinition,
+  isServiceDeliverableAiCreatable,
+  type ServiceDeliverableType,
+} from "@/lib/services/deliverable-profile"
 
 export const SERVICE_EXECUTION_MODES = [
   "text_delivery",
@@ -41,10 +46,10 @@ export const serviceExecutionModeDefinitions: readonly ServiceExecutionModeDefin
   },
   {
     value: "manual_owner_delivery",
-    label: "Manual Owner Delivery",
-    shortLabel: "Manual",
+    label: "Manual Owner Delivery (Legacy)",
+    shortLabel: "Legacy",
     description:
-      "Payment still flows on-chain, but the agent owner completes the work manually instead of relying on automatic AI delivery.",
+      "This older mode keeps the final creation step with the owner. New AI-first services should use an automated mode instead.",
   },
   {
     value: "hybrid_ai_plus_owner_review",
@@ -54,6 +59,47 @@ export const serviceExecutionModeDefinitions: readonly ServiceExecutionModeDefin
       "AgentCommerce generates a draft first, then the owner reviews and sends the final delivery manually.",
   },
 ] as const
+
+export function getSupportedCreationExecutionModes(
+  deliverableType: ServiceDeliverableType,
+) {
+  if (!isServiceDeliverableAiCreatable(deliverableType)) {
+    return [] as ServiceExecutionMode[]
+  }
+
+  if (deliverableType === "design") {
+    return ["hybrid_ai_plus_owner_review", "file_generation"] as ServiceExecutionMode[]
+  }
+
+  if (deliverableType === "document") {
+    return [
+      "text_delivery",
+      "research_with_links",
+      "file_generation",
+      "hybrid_ai_plus_owner_review",
+    ] as ServiceExecutionMode[]
+  }
+
+  return ["file_generation", "hybrid_ai_plus_owner_review"] as ServiceExecutionMode[]
+}
+
+export function getSupportedCreationExecutionModeDefinitions(
+  deliverableType: ServiceDeliverableType,
+) {
+  const allowedModes = getSupportedCreationExecutionModes(deliverableType)
+  return serviceExecutionModeDefinitions.filter(
+    (definition) =>
+      definition.value !== "manual_owner_delivery" &&
+      allowedModes.includes(definition.value),
+  )
+}
+
+export function isExecutionModeSupportedForDeliverable(
+  mode: ServiceExecutionMode,
+  deliverableType: ServiceDeliverableType,
+) {
+  return getSupportedCreationExecutionModes(deliverableType).includes(mode)
+}
 
 function isRecord(value: JsonValue | Record<string, unknown> | null | undefined) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -80,12 +126,20 @@ export function getServiceExecutionModeDefinition(mode: ServiceExecutionMode) {
   )
 }
 
-export function buildServiceFulfillmentMetadata(mode: ServiceExecutionMode) {
+export function buildServiceFulfillmentMetadata(
+  mode: ServiceExecutionMode,
+  deliverableType: ServiceDeliverableType,
+) {
+  const deliverableDefinition = getServiceDeliverableDefinition(deliverableType)
+
   return {
     executionMode: mode,
     ownerReviewRequired: mode === "hybrid_ai_plus_owner_review",
     autoDelivery:
       mode !== "manual_owner_delivery" &&
       mode !== "hybrid_ai_plus_owner_review",
+    deliverableType,
+    deliverableLabel: deliverableDefinition.label,
+    deliverableAutomation: deliverableDefinition.automationLevel,
   } satisfies Record<string, boolean | string>
 }

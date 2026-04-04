@@ -169,6 +169,7 @@ function buildPromptInput(order: Awaited<ReturnType<typeof findOrderForTaskOrThr
       attemptNumber,
       createdAt: new Date().toISOString(),
       mode: executionContext.mode,
+      deliverableType: executionContext.deliverableType,
       ownerReviewRequired: executionContext.ownerReviewRequired,
       autoDelivery: executionContext.autoDelivery,
     },

@@ -13,13 +13,14 @@ import { OrderSuccessConfirmation } from "@/components/orders/OrderSuccessConfir
 import { TransactionStatusCard } from "@/components/orders/TransactionStatusCard"
 import { useSession } from "@/components/providers/SessionProvider"
 import { SessionApprovalCard } from "@/components/session"
-import { useService } from "@/hooks/api"
+import { useService, useServices } from "@/hooks/api"
 import { useCreateOrder, useOrderReferenceUploads } from "@/hooks/orders"
 import type { OrderReference } from "@/lib/api/types"
 import {
   hydrateCheckoutContextFromService,
   parseCheckoutContext,
 } from "@/lib/orders/checkout"
+import { buildCheckoutBriefCoachPlan } from "@/lib/orders/brief-coach"
 import { buildSampleOrderBriefs } from "@/lib/orders/sample-order-briefs"
 
 export default function CheckoutPage() {
@@ -34,10 +35,46 @@ export default function CheckoutPage() {
     searchParams,
   })
   const serviceQuery = useService(params.id)
+  const sameAgentServicesQuery = useServices(
+    {
+      agentId: serviceQuery.data?.data.agentId,
+      status: "ACTIVE",
+      page: 1,
+      pageSize: 12,
+    },
+    {
+      enabled: Boolean(serviceQuery.data?.data.agentId),
+    },
+  )
+  const activeServicesQuery = useServices(
+    {
+      status: "ACTIVE",
+      page: 1,
+      pageSize: 24,
+    },
+    {
+      enabled: true,
+    },
+  )
   const checkout = hydrateCheckoutContextFromService({
     checkout: checkoutBase,
     service: serviceQuery.data?.data,
   })
+  const availableRecommendationServices = useMemo(() => {
+    const merged = [
+      ...(sameAgentServicesQuery.data?.data ?? []),
+      ...(activeServicesQuery.data?.data ?? []),
+    ]
+    const deduped = new Map<string, (typeof merged)[number]>()
+
+    for (const service of merged) {
+      if (!deduped.has(service.id)) {
+        deduped.set(service.id, service)
+      }
+    }
+
+    return Array.from(deduped.values())
+  }, [activeServicesQuery.data?.data, sameAgentServicesQuery.data?.data])
   const sampleBriefs = useMemo(
     () =>
       buildSampleOrderBriefs({
@@ -45,6 +82,25 @@ export default function CheckoutPage() {
         service: serviceQuery.data?.data,
       }),
     [checkout, serviceQuery.data?.data],
+  )
+  const briefCoachPlan = useMemo(
+    () =>
+      buildCheckoutBriefCoachPlan({
+        serviceTitle: checkout.serviceTitle,
+        serviceDescription: checkout.serviceDescription,
+        service: serviceQuery.data?.data,
+        customerNote,
+        customerReferences,
+        availableServices: availableRecommendationServices,
+      }),
+    [
+      availableRecommendationServices,
+      checkout.serviceDescription,
+      checkout.serviceTitle,
+      customerNote,
+      customerReferences,
+      serviceQuery.data?.data,
+    ],
   )
   const createOrder = useCreateOrder(checkout)
   const referenceUploads = useOrderReferenceUploads()
@@ -122,6 +178,7 @@ export default function CheckoutPage() {
               <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
                 <CheckoutSummary
                   checkout={checkout}
+                  service={serviceQuery.data?.data}
                   customerNote={customerNote}
                   onCustomerNoteChange={setCustomerNote}
                   customerReferences={customerReferences}
@@ -147,6 +204,7 @@ export default function CheckoutPage() {
                   }}
                   sampleBriefs={sampleBriefs}
                   onApplySampleBrief={setCustomerNote}
+                  availableServices={availableRecommendationServices}
                 />
 
                 <div className="space-y-5">
@@ -180,20 +238,26 @@ export default function CheckoutPage() {
                       <WalletActionButton
                         className="w-full h-14 text-lg font-bold"
                         connectLabel="Connect Wallet to Pay"
-                        disabled={!createOrder.canSubmit || serviceQuery.isLoading}
+                        disabled={
+                          !createOrder.canSubmit ||
+                          serviceQuery.isLoading ||
+                          !briefCoachPlan.isCheckoutReady
+                        }
                         onAuthorizedAction={() =>
                           createOrder.submit({ customerNote, customerReferences })
                         }
                       >
                         Confirm Payment
                       </WalletActionButton>
-                      {!createOrder.canSubmit ? (
+                      {!createOrder.canSubmit || !briefCoachPlan.isCheckoutReady ? (
                         <p className="text-sm text-amber-200">
                           {!createOrder.wallet.isConfigured
                             ? createOrder.wallet.networkMessage.description
                             : serviceQuery.isLoading
                               ? "AgentCommerce is loading the live checkout metadata for this service."
-                              : "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."}
+                              : !createOrder.canSubmit
+                                ? "This service is missing the on-chain checkout metadata needed to call ServiceEscrow."
+                                : briefCoachPlan.blockingMessage}
                         </p>
                       ) : null}
                     </div>

@@ -81,9 +81,7 @@ export function CreateAgentWizard() {
       case "saving_metadata":
         return "Saving agent metadata"
       case "awaiting_wallet":
-        return isSessionActive
-          ? "Preparing auto-sign transaction"
-          : "Waiting for wallet approval"
+        return "Waiting for wallet approval"
       case "confirming":
         return "Waiting for on-chain confirmation"
       case "syncing_backend":
@@ -229,12 +227,8 @@ export function CreateAgentWizard() {
         <TransactionStatusPanel
           transaction={createAgent.transaction}
           warningMessage={createAgent.warningMessage}
-          helperMessage={
-            createAgent.stage === "awaiting_wallet" && isSessionActive
-              ? "Auto-sign is active for this session, so the wallet step may complete with less manual friction."
-              : progressText
-          }
-          isAutoSigning={isSessionActive}
+          helperMessage={progressText}
+          isAutoSigning={false}
         />
       </div>
     )

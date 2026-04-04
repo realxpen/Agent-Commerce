@@ -19,12 +19,18 @@ type ContractExecutor<TInput, TData> = (
   options?: ContractExecutionOptions,
 ) => Promise<ContractActionResult<TData>>
 
+type UseContractActionOptions = {
+  autoSignMode?: "enabled" | "disabled"
+}
+
 export function useContractAction<TInput, TData>(
   executor: ContractExecutor<TInput, TData>,
+  options: UseContractActionOptions = {},
 ) {
   const session = useSession()
   const wallet = useWalletAccount()
-  const { autoSign, requestTxSync, waitForTxConfirmation } = useInterwovenKit()
+  const { autoSign, requestTxSync, submitTxSync, waitForTxConfirmation } =
+    useInterwovenKit()
   const [status, setStatus] = useState<ContractActionStatus>("idle")
   const [result, setResult] = useState<ContractActionResult<TData> | null>(null)
   const [error, setError] = useState<NormalizedContractError | null>(null)
@@ -34,20 +40,25 @@ export function useContractAction<TInput, TData>(
 
     return {
       enabled:
+        options.autoSignMode !== "disabled" &&
         session.isSessionActive &&
         Boolean(wallet.initiaAddress) &&
         Boolean(autoSign.isEnabledByChain[interwovenChainId]),
       chainId: interwovenChainId,
       senderAddress: wallet.initiaAddress ?? null,
+      preferredFeeDenom: agentCommerceConfig.appchain.nativeDenom,
       requestTxSync,
+      submitTxSync,
       waitForTxConfirmation,
     } satisfies ContractExecutionOptions["autoSignContext"]
   }, [
     autoSign.isEnabledByChain,
     requestTxSync,
+    submitTxSync,
     session.isSessionActive,
     waitForTxConfirmation,
     wallet.initiaAddress,
+    options.autoSignMode,
   ])
 
   const execute = useCallback(

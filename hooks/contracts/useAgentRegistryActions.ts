@@ -9,9 +9,15 @@ import {
 import { useContractAction } from "@/hooks/contracts/useContractAction"
 
 export function useAgentRegistryActions() {
-  const createAgentAction = useContractAction(createAgent)
-  const updateAgentAction = useContractAction(updateAgent)
-  const createServiceAction = useContractAction(createService)
+  const createAgentAction = useContractAction(createAgent, {
+    autoSignMode: "disabled",
+  })
+  const updateAgentAction = useContractAction(updateAgent, {
+    autoSignMode: "disabled",
+  })
+  const createServiceAction = useContractAction(createService, {
+    autoSignMode: "disabled",
+  })
 
   return useMemo(
     () => ({

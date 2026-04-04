@@ -113,8 +113,13 @@ export function getCheckoutOnchainReferences(metadata: JsonValue | null) {
   }
 }
 
+type CheckoutHrefAgent = Pick<
+  AgentDto,
+  "id" | "name" | "slug" | "treasuryAddress"
+>
+
 export function buildCheckoutHref(options: {
-  agent: AgentDto
+  agent: CheckoutHrefAgent
   service: AgentServiceDto
 }) {
   const { agent, service } = options

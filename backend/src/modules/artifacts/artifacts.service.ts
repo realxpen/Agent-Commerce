@@ -128,6 +128,10 @@ export async function getGeneratedArtifact(artifactId: string) {
   };
 }
 
+export async function getGeneratedArtifactFile(artifactId: string) {
+  return getGeneratedArtifactMetadata(artifactId);
+}
+
 async function getGeneratedArtifactMetadata(artifactId: string) {
   let metadata: StoredGeneratedArtifactMetadata;
   try {

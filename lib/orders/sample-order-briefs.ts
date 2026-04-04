@@ -1,6 +1,10 @@
 import type { AgentServiceDto } from "@/lib/api/types"
 import type { CheckoutContext } from "@/lib/orders/checkout"
 import {
+  getServiceDeliverableType,
+  type ServiceDeliverableType,
+} from "@/lib/services/deliverable-profile"
+import {
   getServiceExecutionMode,
   getServiceExecutionModeDefinition,
 } from "@/lib/services/execution-mode"
@@ -94,24 +98,148 @@ function buildManualDeliveryBrief(serviceTitle: string) {
   ].join("\n")
 }
 
+function buildDeliverableSpecificBrief(
+  serviceTitle: string,
+  deliverableType: ServiceDeliverableType,
+) {
+  switch (deliverableType) {
+    case "contract":
+      return [
+        `Goal: Use the "${serviceTitle}" service to draft a smart contract deliverable.`,
+        "",
+        "What I am attaching:",
+        "- Protocol requirements, token details, and product notes",
+        "- Any security assumptions or reference contracts",
+        "",
+        "Please deliver:",
+        "- Clear contract logic",
+        "- Assumptions and risks",
+        "- Deployment or integration notes where helpful",
+      ].join("\n")
+    case "code":
+      return [
+        `Goal: Use the "${serviceTitle}" service to produce a working code handoff.`,
+        "",
+        "What I am attaching:",
+        "- Feature requirements",
+        "- Existing snippets, APIs, or schema notes",
+        "",
+        "Please deliver:",
+        "- Clean implementation-ready code",
+        "- Short setup notes",
+        "- Any files or exports needed to run it",
+      ].join("\n")
+    case "presentation":
+      return [
+        `Goal: Build the content for the "${serviceTitle}" presentation deliverable.`,
+        "",
+        "What I am attaching:",
+        "- Product notes and positioning",
+        "- Audience context and key metrics",
+        "",
+        "Please deliver:",
+        "- Slide-by-slide structure",
+        "- Strong headlines",
+        "- Clear supporting bullets and CTA ideas",
+      ].join("\n")
+    case "model":
+      return [
+        `Goal: Prepare the "${serviceTitle}" 3D deliverable.`,
+        "",
+        "What I am attaching:",
+        "- Product references, dimensions, and style notes",
+        "- Screenshots, sketches, or moodboard references",
+        "",
+        "Please deliver:",
+        "- The final 3D asset",
+        "- A short handoff note covering intended use and any constraints",
+      ].join("\n")
+    case "deployment":
+      return [
+        `Goal: Deliver a live preview for the "${serviceTitle}" service.`,
+        "",
+        "What I am attaching:",
+        "- Copy, layout notes, screenshots, and brand direction",
+        "",
+        "Please deliver:",
+        "- A working hosted preview or packaged HTML output",
+        "- A short note explaining what is live and what still needs polishing",
+      ].join("\n")
+    case "weights":
+      return [
+        `Goal: Deliver the "${serviceTitle}" checkpoint or model export.`,
+        "",
+        "What I am attaching:",
+        "- Training notes, model targets, and export requirements",
+        "",
+        "Please deliver:",
+        "- The final checkpoint or model file",
+        "- Core metadata and compatibility notes",
+      ].join("\n")
+    case "video":
+      return [
+        `Goal: Deliver the final video output for the "${serviceTitle}" service.`,
+        "",
+        "What I am attaching:",
+        "- Product notes, reference videos, and scene direction",
+        "",
+        "Please deliver:",
+        "- Final exported video",
+        "- A short note on timing, framing, and intended use",
+      ].join("\n")
+    case "audio":
+      return [
+        `Goal: Deliver the final audio output for the "${serviceTitle}" service.`,
+        "",
+        "What I am attaching:",
+        "- Script, tone guidance, and pronunciation notes",
+        "",
+        "Please deliver:",
+        "- Final audio file",
+        "- A short note on delivery style and usage guidance",
+      ].join("\n")
+    case "spreadsheet":
+      return [
+        `Goal: Use the "${serviceTitle}" service to prepare a spreadsheet-ready deliverable.`,
+        "",
+        "What I am attaching:",
+        "- Raw financial or planning data",
+        "- Notes explaining the important columns or calculations",
+        "",
+        "Please deliver:",
+        "- A structured workbook-style output",
+        "- Clean tabs, fields, or sheet sections",
+        "- Summary insights that explain what matters most",
+      ].join("\n")
+    case "data":
+      return buildStructuredExportBrief(serviceTitle)
+    case "design":
+      return buildVisualDraftBrief(serviceTitle)
+    case "document":
+    default:
+      return buildTextDeliveryBrief(serviceTitle)
+  }
+}
+
 export function buildSampleOrderBriefs(input: {
   checkout: CheckoutContext
   service?: AgentServiceDto | null
 }) {
   const mode = getServiceExecutionMode(input.service?.metadata ?? null)
   const modeDefinition = getServiceExecutionModeDefinition(mode)
+  const deliverableType = getServiceDeliverableType(input.service?.metadata ?? null)
   const serviceTitle = input.service?.title ?? input.checkout.serviceTitle
 
   const modeSpecificBrief =
-    mode === "file_generation"
-      ? buildStructuredExportBrief(serviceTitle)
-      : mode === "hybrid_ai_plus_owner_review"
-        ? buildVisualDraftBrief(serviceTitle)
-        : mode === "research_with_links"
+    mode === "hybrid_ai_plus_owner_review"
+      ? buildVisualDraftBrief(serviceTitle)
+      : mode === "research_with_links"
           ? buildResearchBrief(serviceTitle)
           : mode === "manual_owner_delivery"
-            ? buildManualDeliveryBrief(serviceTitle)
-            : buildTextDeliveryBrief(serviceTitle)
+            ? buildDeliverableSpecificBrief(serviceTitle, deliverableType)
+            : mode === "file_generation"
+              ? buildDeliverableSpecificBrief(serviceTitle, deliverableType)
+              : buildDeliverableSpecificBrief(serviceTitle, deliverableType)
 
   return [
     {

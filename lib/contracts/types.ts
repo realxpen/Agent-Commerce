@@ -60,11 +60,28 @@ export type AutoSignTxRequest = {
   internal?: boolean | string | number
 }
 
+export type AutoSignStdFee = {
+  amount: AutoSignCoin[]
+  gas: string
+  granter?: string
+  payer?: string
+}
+
+export type AutoSignSubmitTxParams = {
+  messages: EncodeObject[]
+  memo?: string
+  chainId?: string
+  fee: AutoSignStdFee
+  preferredFeeDenom?: string
+}
+
 export type AutoSignExecutionContext = {
   enabled: boolean
   chainId: string
   senderAddress: string | null
+  preferredFeeDenom: string
   requestTxSync: (txRequest: AutoSignTxRequest) => Promise<string>
+  submitTxSync: (txParams: AutoSignSubmitTxParams) => Promise<string>
   waitForTxConfirmation: (params: {
     txHash: string
     chainId?: string

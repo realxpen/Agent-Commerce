@@ -23,6 +23,7 @@ import {
 import { getAgentOnchainReferences } from "@/lib/agents/onchain"
 import { agentCommerceConfig } from "@/lib/appchain/config"
 import { createService as createServiceOnChain } from "@/lib/contracts/agent-registry-client"
+import { getServiceDeliverableDefinition } from "@/lib/services/deliverable-profile"
 import { buildServiceFulfillmentMetadata } from "@/lib/services/execution-mode"
 import { buildTransactionState } from "@/lib/transactions/messages"
 
@@ -167,7 +168,9 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
   const session = useSession()
   const auth = useBackendAuth()
   const wallet = useWalletConnectionFlow()
-  const contractAction = useContractAction(createServiceOnChain)
+  const contractAction = useContractAction(createServiceOnChain, {
+    autoSignMode: "disabled",
+  })
   const lastSubmittedValuesRef = useRef<CreateServiceFormValues | null>(null)
 
   const [manualStage, setManualStage] = useState<
@@ -321,6 +324,9 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
 
       let backendService: AgentServiceDto | null = null
       let nextWarning: string | null = null
+      const deliverableDefinition = getServiceDeliverableDefinition(
+        validation.data.deliverableType,
+      )
 
       try {
         const response = await agentCommerceApi.createService(selectedAgent.id, {
@@ -333,7 +339,13 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
           metadata: {
             fulfillment: buildServiceFulfillmentMetadata(
               validation.data.executionMode,
+              validation.data.deliverableType,
             ),
+            deliverable: {
+              type: validation.data.deliverableType,
+              label: deliverableDefinition.label,
+              automation: deliverableDefinition.automationLevel,
+            },
             onchain: {
               agentId: onchainAgentId.toString(),
               chainId: agentCommerceConfig.appchain.interwovenChainId,
@@ -392,7 +404,13 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
                   : {}),
                 fulfillment: buildServiceFulfillmentMetadata(
                   validation.data.executionMode,
+                  validation.data.deliverableType,
                 ),
+                deliverable: {
+                  type: validation.data.deliverableType,
+                  label: deliverableDefinition.label,
+                  automation: deliverableDefinition.automationLevel,
+                },
                 onchain: {
                   agentId: onchainAgentId.toString(),
                   serviceId: contractResult.data.serviceId?.toString() ?? null,

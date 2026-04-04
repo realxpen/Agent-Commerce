@@ -30,6 +30,10 @@ function getFileExtension(value: string | null | undefined) {
   return match?.[1]?.toLowerCase() ?? null
 }
 
+function normalizeFormatLabel(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? null
+}
+
 function formatBytes(value: number | null) {
   if (value == null || Number.isNaN(value)) {
     return "Unknown"
@@ -243,7 +247,10 @@ export function WeightsAssetPreview({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const extension = useMemo(() => getFileExtension(fileName ?? url), [fileName, url])
+  const extension = useMemo(
+    () => getFileExtension(fileName ?? url) ?? normalizeFormatLabel(formatLabel),
+    [fileName, formatLabel, url],
+  )
 
   if (!url) {
     return (

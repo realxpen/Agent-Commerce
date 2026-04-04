@@ -7,6 +7,10 @@ import {
   getServiceExecutionModeFromTaskInput,
   type ServiceExecutionMode,
 } from "../modules/services/service-execution.js";
+import {
+  getServiceDeliverableTypeFromTaskInput,
+  type ServiceDeliverableType,
+} from "../modules/services/service-deliverables.js";
 import { logger } from "../lib/logger.js";
 import type { TaskExecutionConfig, TaskToolName } from "./llm/llm.types.js";
 import {
@@ -307,15 +311,41 @@ function parseReferenceInputs(taskRun: TaskRunRecord) {
 
 function resolveAllowedTools(
   mode: ServiceExecutionMode,
+  deliverableType: ServiceDeliverableType,
   config: TaskExecutionConfig,
 ) {
   const explicitTools = Array.isArray(config.allowedTools)
     ? config.allowedTools.filter((tool, index, tools) => tools.indexOf(tool) === index)
     : null;
 
-  return explicitTools && explicitTools.length > 0
+  const baseTools = explicitTools && explicitTools.length > 0
     ? explicitTools
     : DEFAULT_TOOLS_BY_MODE[mode];
+
+  if (mode === "manual_owner_delivery" && (!explicitTools || explicitTools.length === 0)) {
+    return baseTools;
+  }
+
+  const preferredTools = (() => {
+    switch (deliverableType) {
+      case "design":
+        return ["image_generator", "document_builder"] as const;
+      case "code":
+      case "contract":
+        return ["code_runner", "file_transformer", "document_builder"] as const;
+      case "data":
+      case "spreadsheet":
+      case "weights":
+        return ["code_runner", "file_transformer", "reference_digest"] as const;
+      case "presentation":
+      case "deployment":
+        return ["document_builder", "reference_digest"] as const;
+      default:
+        return [] as const;
+    }
+  })();
+
+  return [...new Set([...baseTools, ...preferredTools])];
 }
 
 function collectCandidateUrls(input: Record<string, unknown> | null, references: ReferenceInput[]) {
@@ -689,8 +719,9 @@ export async function executeTaskTools(input: {
 }): Promise<TaskToolContext | null> {
   const { taskRun, config } = input;
   const mode = getServiceExecutionModeFromTaskInput(taskRun.input);
+  const deliverableType = getServiceDeliverableTypeFromTaskInput(taskRun.input);
   const hasExplicitAllowedTools = Array.isArray(config.allowedTools) && config.allowedTools.length > 0;
-  const allowedTools = resolveAllowedTools(mode, config);
+  const allowedTools = resolveAllowedTools(mode, deliverableType, config);
 
   if (allowedTools.length === 0) {
     return null;
@@ -790,6 +821,8 @@ export async function executeTaskTools(input: {
       customerNote,
       references,
       revisions,
+      deliverableType,
+      executionMode: mode,
     });
 
     if (runtimeResult) {

@@ -1,0 +1,74 @@
+[
+  {
+    "date": "2023-10-26",
+    "metrics": {
+      "users": {
+        "total_unique_visitors": 1250,
+        "new_users_registered": 120,
+        "returning_users_logged_in": 780,
+        "average_session_duration_seconds": 320
+      },
+      "orders": {
+        "total_orders_placed": 95,
+        "successful_orders": 88,
+        "cancelled_orders": 7,
+        "total_items_sold": 210,
+        "average_order_value_usd": 75.5,
+        "conversion_rate_visitor_to_order": 0.0704
+      },
+      "revenue": {
+        "gross_revenue_usd": 6644,
+        "net_revenue_usd": 6124.75,
+        "average_revenue_per_user_usd": 4.9
+      }
+    }
+  },
+  {
+    "date": "2023-10-27",
+    "metrics": {
+      "users": {
+        "total_unique_visitors": 1300,
+        "new_users_registered": 135,
+        "returning_users_logged_in": 810,
+        "average_session_duration_seconds": 335
+      },
+      "orders": {
+        "total_orders_placed": 110,
+        "successful_orders": 102,
+        "cancelled_orders": 8,
+        "total_items_sold": 240,
+        "average_order_value_usd": 80.25,
+        "conversion_rate_visitor_to_order": 0.0785
+      },
+      "revenue": {
+        "gross_revenue_usd": 8080.5,
+        "net_revenue_usd": 7434,
+        "average_revenue_per_user_usd": 5.72
+      }
+    }
+  },
+  {
+    "date": "2023-10-28",
+    "metrics": {
+      "users": {
+        "total_unique_visitors": 1100,
+        "new_users_registered": 80,
+        "returning_users_logged_in": 700,
+        "average_session_duration_seconds": 310
+      },
+      "orders": {
+        "total_orders_placed": 90,
+        "successful_orders": 85,
+        "cancelled_orders": 5,
+        "total_items_sold": 200,
+        "average_order_value_usd": 78,
+        "conversion_rate_visitor_to_order": 0.0818
+      },
+      "revenue": {
+        "gross_revenue_usd": 7020,
+        "net_revenue_usd": 6500,
+        "average_revenue_per_user_usd": 5.95
+      }
+    }
+  }
+]

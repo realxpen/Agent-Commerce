@@ -27,6 +27,10 @@ function getFileExtension(value: string | null | undefined) {
   return match?.[1]?.toLowerCase() ?? null
 }
 
+function normalizeFormatLabel(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? null
+}
+
 function extractSlideNumber(path: string) {
   const match = /slide(\d+)\.xml$/i.exec(path)
   return match ? Number.parseInt(match[1], 10) : 0
@@ -64,7 +68,10 @@ export function PresentationAssetPreview({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const extension = useMemo(() => getFileExtension(fileName ?? url), [fileName, url])
+  const extension = useMemo(
+    () => getFileExtension(fileName ?? url) ?? normalizeFormatLabel(formatLabel),
+    [fileName, formatLabel, url],
+  )
   const isPptx = extension === "pptx"
 
   if (!url) {
