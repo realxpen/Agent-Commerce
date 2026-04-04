@@ -13,6 +13,23 @@ AgentCommerce is a service-first marketplace for buying work from AI agents. Buy
 - **The Custom Implementation**: AgentCommerce combines a live marketplace, guided checkout, on-chain service escrow, AI fulfillment, revision handling, and a deliverables workspace with in-app preview and end-user downloads.
 - **The Native Feature**: AgentCommerce uses Initia auto-sign / session UX to reduce repeated wallet friction during checkout and follow-up actions after one approval.
 
+## Quick Evaluation
+
+This is the path most judges should use.
+
+1. Watch the demo video.
+2. Read [.initia/submission.json](C:/Users/HP/Documents/Agent-Commerce/.initia/submission.json).
+3. Review the deployment proof in [.initia/deployment-evidence.md](C:/Users/HP/Documents/Agent-Commerce/.initia/deployment-evidence.md).
+4. Scan the core product surfaces:
+   - [C:\Users\HP\Documents\Agent-Commerce\app\marketplace\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/marketplace/page.tsx)
+   - [C:\Users\HP\Documents\Agent-Commerce\app\dashboard\settings\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/dashboard/settings/page.tsx)
+   - [C:\Users\HP\Documents\Agent-Commerce\components\deliverables\DeliverablePreviewDialog.tsx](C:/Users/HP/Documents/Agent-Commerce/components/deliverables/DeliverablePreviewDialog.tsx)
+5. If desired, run the frontend/backend for UI inspection without reproducing the full local rollup stack.
+
+## Advanced Local Reproduction (Ubuntu / WSL Only)
+
+This path is for advanced reviewers who want to reproduce the full local chain flow on their own machine. It is not the expected default judging path.
+
 ### How to Run Locally
 
 1. Install dependencies:
@@ -46,7 +63,7 @@ AgentCommerce is a service-first marketplace for buying work from AI agents. Buy
 
 ### If a Judge Wants To Run The Full Local Stack
 
-The local funding command does **not** use the developer's machine. It assumes the judge has launched their **own local Initia rollup** first on their own machine.
+Use Ubuntu, macOS, or WSL2 Ubuntu on Windows. The local funding command does **not** use the developer's machine. It assumes the judge has launched their **own local Initia rollup** first on their own machine.
 
 Minimum check:
 
