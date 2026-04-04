@@ -27,6 +27,8 @@ import { useSessionApproval } from "@/hooks/session"
 import { useBackendAuth } from "@/hooks/auth"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 
+const INITIA_WALLET_DOCS_URL = "https://docs.initia.xyz/home/tools/wallet"
+
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Create Agent", href: "/dashboard/create", icon: PlusCircle },
@@ -136,6 +138,16 @@ function SidebarWalletCard() {
           <p className="truncate text-xs font-bold text-white">
             {wallet.displayName}
           </p>
+          {wallet.resolvedUsername ? (
+            <div className="mt-1 flex items-center gap-2">
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                {wallet.username ? ".init" : "resolved"}
+              </span>
+              <span className="truncate text-[10px] font-medium text-emerald-200">
+                {wallet.resolvedInitUsername}
+              </span>
+            </div>
+          ) : null}
           <p className="mt-1 truncate font-mono text-[10px] text-white/40">
             {wallet.shortAddress ?? wallet.initiaAddress ?? wallet.hexAddress}
           </p>
@@ -159,6 +171,37 @@ function SidebarWalletCard() {
           </>
         )}
       </div>
+
+      {wallet.isUsernameLoading ? (
+        <div className="mt-3 rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-200">
+            Checking usernames
+          </p>
+          <p className="mt-1 text-[11px] leading-5 text-indigo-100/70">
+            Resolving this wallet against the live Initia usernames registry.
+          </p>
+        </div>
+      ) : null}
+
+      {!wallet.resolvedUsername && !wallet.isUsernameLoading ? (
+        <div className="mt-3 rounded-xl border border-amber-500/15 bg-amber-500/5 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200">
+            No Init username yet
+          </p>
+          <p className="mt-1 text-[11px] leading-5 text-amber-100/70">
+            Connect a wallet profile with a live `.init` name, then reconnect to
+            show your handle here.
+          </p>
+          <a
+            className="mt-2 inline-flex text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200 transition hover:text-white"
+            href={INITIA_WALLET_DOCS_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Learn how
+          </a>
+        </div>
+      ) : null}
 
       {!auth.isAuthenticated ? (
         <Button

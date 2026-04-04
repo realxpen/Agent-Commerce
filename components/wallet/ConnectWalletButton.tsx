@@ -50,10 +50,17 @@ export function ConnectWalletButton({
             ? "Setup Required"
             : isBusy
               ? "Connecting"
-              : "Connect Wallet"}
+              : "Open Initia Wallet"}
         </Button>
         {showStatusBadge ? <WalletStatusBadge /> : null}
       </div>
+
+      {!errorMessage && isConfigured ? (
+        <div className="text-xs text-white/45">
+          Use your existing EVM wallet, or continue with email, Google, or X
+          through Initia Wallet.
+        </div>
+      ) : null}
 
       {errorMessage || !isConfigured ? (
         <div className="flex items-center gap-2 text-xs text-rose-300">

@@ -1,9 +1,13 @@
 "use client"
 
 import { useMemo } from "react"
-import { useInterwovenKit } from "@initia/interwovenkit-react"
+import { useInterwovenKit, useUsernameQuery } from "@initia/interwovenkit-react"
 import { useAccount } from "wagmi"
 import { getWalletDisplayName, shortenAddress } from "@/lib/wallet/format"
+import {
+  formatInitiaUsername,
+  normalizeInitiaUsername,
+} from "@/lib/wallet/initia-usernames"
 
 export function useWalletAccount() {
   const {
@@ -11,9 +15,14 @@ export function useWalletAccount() {
     hexAddress,
     initiaAddress,
     isConnected: isInterwovenConnected,
-    username,
+    username: connectedUsername,
   } = useInterwovenKit()
   const { isConnecting, status } = useAccount()
+  const usernameQuery = useUsernameQuery(initiaAddress ?? undefined)
+  const username = normalizeInitiaUsername(connectedUsername)
+  const resolvedUsername = normalizeInitiaUsername(
+    connectedUsername ?? usernameQuery.data,
+  )
 
   return useMemo(
     () => ({
@@ -21,6 +30,10 @@ export function useWalletAccount() {
       hexAddress,
       initiaAddress,
       username,
+      initUsername: formatInitiaUsername(username),
+      resolvedUsername,
+      resolvedInitUsername: formatInitiaUsername(resolvedUsername),
+      isUsernameLoading: usernameQuery.isLoading,
       isConnected: isInterwovenConnected,
       isConnecting,
       connectionStatus: status,
@@ -43,6 +56,9 @@ export function useWalletAccount() {
       isInterwovenConnected,
       status,
       username,
+      usernameQuery.isLoading,
+      usernameQuery.data,
+      resolvedUsername,
     ],
   )
 }

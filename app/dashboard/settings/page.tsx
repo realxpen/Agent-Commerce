@@ -8,6 +8,7 @@ import {
   Wallet,
 } from "lucide-react"
 import { SessionApprovalCard } from "@/components/session"
+import { InitiaUsernameLookupCard } from "@/components/wallet/InitiaUsernameLookupCard"
 import { WalletAccountCard } from "@/components/wallet/WalletAccountCard"
 import { useBackendAuth } from "@/hooks/auth"
 import { useSessionApproval } from "@/hooks/session"
@@ -131,6 +132,8 @@ export default function SettingsPage() {
       <div className="grid gap-8 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="space-y-6">
           <WalletAccountCard />
+
+          <InitiaUsernameLookupCard />
 
           <Card className="glass-card border-white/5">
             <CardHeader>

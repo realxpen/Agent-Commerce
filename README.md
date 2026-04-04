@@ -1,20 +1,86 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AgentCommerce
 
-# Run and deploy your AI Studio app
+## Initia Hackathon Submission
 
-This contains everything you need to run your app locally.
+- **Project Name**: AgentCommerce
 
-View your app in AI Studio: https://ai.studio/apps/b9137423-0b10-4638-a289-448c76ac104c
+### Project Overview
 
-## Run Locally
+AgentCommerce is a service-first marketplace for buying work from AI agents. Buyers discover services, submit a guided brief, pay through on-chain escrow, and receive structured deliverables in one workflow. It is built for founders, creators, and online businesses that want AI research, content, design, analytics, and technical execution in a product that feels like commerce, not a loose collection of tools.
 
-**Prerequisites:**  Node.js
+### Implementation Detail
 
+- **The Custom Implementation**: AgentCommerce combines a live marketplace, guided checkout, on-chain service escrow, AI fulfillment, revision handling, and a deliverables workspace with in-app preview and end-user downloads.
+- **The Native Feature**: AgentCommerce uses Initia auto-sign / session UX to reduce repeated wallet friction during checkout and follow-up actions after one approval.
+
+### How to Run Locally
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   - root: `npm install`
+   - backend: `cd backend && npm install`
+2. Prepare env files:
+   - frontend: copy `.env.example` to `.env.local`
+   - backend: copy `backend/.env.example` to `backend/.env`
+3. Update `backend/.env`:
+   - set `AGENT_REGISTRY_CONTRACT_ADDRESS=0xB6Bc813D9274d0AB3d460892D571CCb224dE162E`
+   - set `SERVICE_ESCROW_CONTRACT_ADDRESS=0x8a57E865966B58964Ae13Ef8c20B23f8dC5d654f`
+   - add one working model key: `OPENAI_API_KEY` or `GEMINI_API_KEY`
+4. Make sure these local services are running:
+   - Postgres on `localhost:5432`
+   - Redis on `localhost:6379`
+   - local Initia EVM rollup on:
+     - JSON-RPC `http://localhost:8545`
+     - RPC `http://localhost:26657`
+     - REST `http://localhost:1317`
+5. Initialize the backend database:
+   - `cd backend`
+   - `npx prisma generate`
+   - `npx prisma db push`
+6. Start the backend:
+   - terminal 1: `cd backend && npm run dev`
+   - terminal 2: `cd backend && npm run dev:worker`
+   - optional terminal 3: `cd backend && npm run dev:indexer`
+7. Start the frontend:
+   - `npm run dev`
+   - open [http://localhost:3000](http://localhost:3000)
+
+## What Judges Should Check
+
+1. Open the marketplace and browse live service listings.
+2. Open a service detail page and go into checkout.
+3. Connect through Initia Wallet.
+4. Approve smooth actions in settings, then return to checkout.
+5. Place an order and view the order lifecycle.
+6. Open the deliverables workspace and test preview/download.
+
+## Initia Features Used
+
+- **InterwovenKit wallet UX**: [C:\Users\HP\Documents\Agent-Commerce\components\providers\WalletProvider.tsx](C:/Users/HP/Documents/Agent-Commerce/components/providers/WalletProvider.tsx)
+- **Auto-sign / session UX**: [C:\Users\HP\Documents\Agent-Commerce\components\providers\SessionProvider.tsx](C:/Users/HP/Documents/Agent-Commerce/components/providers/SessionProvider.tsx)
+- **Bridge experience**: [C:\Users\HP\Documents\Agent-Commerce\app\dashboard\bridge\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/dashboard/bridge/page.tsx)
+- **Initia username support**: [C:\Users\HP\Documents\Agent-Commerce\components\wallet\InitiaUsernameLookupCard.tsx](C:/Users/HP/Documents/Agent-Commerce/components/wallet/InitiaUsernameLookupCard.tsx)
+
+## Core Logic
+
+- **Escrow contract**: [C:\Users\HP\Documents\Agent-Commerce\contracts\src\ServiceEscrow.sol](C:/Users/HP/Documents/Agent-Commerce/contracts/src/ServiceEscrow.sol)
+- **Agent registry**: [C:\Users\HP\Documents\Agent-Commerce\contracts\src\AgentRegistry.sol](C:/Users/HP/Documents/Agent-Commerce/contracts/src/AgentRegistry.sol)
+- **Marketplace UI**: [C:\Users\HP\Documents\Agent-Commerce\app\marketplace\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/marketplace/page.tsx)
+- **Checkout brief coaching**: [C:\Users\HP\Documents\Agent-Commerce\lib\orders\brief-coach.ts](C:/Users/HP/Documents/Agent-Commerce/lib/orders/brief-coach.ts)
+- **Deliverables preview/download flow**: [C:\Users\HP\Documents\Agent-Commerce\components\deliverables\DeliverablePreviewDialog.tsx](C:/Users/HP/Documents/Agent-Commerce/components/deliverables/DeliverablePreviewDialog.tsx)
+
+## Deployment Evidence
+
+- **Rollup chain ID**: `agentcommerce-1`
+- **EVM chain ID**: `4273954181916632`
+- **ServiceEscrow**: `0x8a57E865966B58964Ae13Ef8c20B23f8dC5d654f`
+- **AgentRegistry**: `0xB6Bc813D9274d0AB3d460892D571CCb224dE162E`
+- **ServiceEscrow deploy tx**: `0x1d90fb3f6402d8149b687eef7b465a3425a15219ab7b6af1e04ba5e05d181aaf`
+- **AgentRegistry deploy tx**: `0x0669f37e724ea010183aaf6b06dbcdef869294b9c1f6bf461a7ec29e100671a3`
+- **Broadcast proof**: [C:\Users\HP\Documents\Agent-Commerce\contracts\evm\broadcast\DeployAll.s.sol\4273954181916632\run-latest.json](C:/Users/HP/Documents/Agent-Commerce/contracts/evm/broadcast/DeployAll.s.sol/4273954181916632/run-latest.json)
+- **Submission file**: [C:\Users\HP\Documents\Agent-Commerce\.initia\submission.json](C:/Users/HP/Documents/Agent-Commerce/.initia/submission.json)
+- **Deployment summary**: [C:\Users\HP\Documents\Agent-Commerce\.initia\deployment-evidence.md](C:/Users/HP/Documents/Agent-Commerce/.initia/deployment-evidence.md)
+
+## Notes
+
+- The repo currently targets a local Initia EVM rollup configuration by default.
+- Before final submission, update [.initia/submission.json](C:/Users/HP/Documents/Agent-Commerce/.initia/submission.json) with the final `commit_sha` and your public demo video URL.

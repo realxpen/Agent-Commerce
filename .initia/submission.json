@@ -1,0 +1,12 @@
+{
+  "project_name": "AgentCommerce",
+  "repo_url": "https://github.com/realxpen/Agent-Commerce",
+  "commit_sha": "d3a509f9db60690d6417c94a765fd5ecbb0c77e0",
+  "rollup_chain_id": "agentcommerce-1",
+  "deployed_address": "0x8a57E865966B58964Ae13Ef8c20B23f8dC5d654f",
+  "vm": "evm",
+  "native_feature": "auto-signing",
+  "core_logic_path": "contracts/src/ServiceEscrow.sol",
+  "native_feature_frontend_path": "components/providers/SessionProvider.tsx",
+  "demo_video_url": "https://youtu.be/REPLACE_WITH_REAL_DEMO_VIDEO"
+}

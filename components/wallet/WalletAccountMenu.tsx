@@ -19,7 +19,8 @@ type WalletAccountMenuProps = {
 }
 
 export function WalletAccountMenu({ className }: WalletAccountMenuProps) {
-  const { displayName, isConnected, shortAddress } = useWalletConnectionFlow()
+  const { displayName, isConnected, shortAddress, username, resolvedUsername } =
+    useWalletConnectionFlow()
 
   return (
     <Dialog>
@@ -31,6 +32,11 @@ export function WalletAccountMenu({ className }: WalletAccountMenuProps) {
           variant="glass"
         >
           <Wallet className="mr-2 size-4" />
+          {isConnected && (username || resolvedUsername) ? (
+            <span className="mr-2 hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300 sm:inline-flex">
+              .init
+            </span>
+          ) : null}
           <span className="max-w-32 truncate">
             {isConnected ? displayName : "Wallet"}
           </span>
