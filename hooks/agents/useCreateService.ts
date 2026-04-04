@@ -337,6 +337,9 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
           estimatedDeliveryMinutes:
             validation.data.estimatedDeliveryMinutes ?? undefined,
           metadata: {
+            marketplace: {
+              coverImageUrl: validation.data.coverImageUrl,
+            },
             fulfillment: buildServiceFulfillmentMetadata(
               validation.data.executionMode,
               validation.data.deliverableType,
@@ -402,6 +405,17 @@ export function useCreateService(options: UseCreateServiceOptions = {}) {
                 !Array.isArray(backendService.metadata)
                   ? backendService.metadata
                   : {}),
+                marketplace: {
+                  ...(backendService.metadata &&
+                  typeof backendService.metadata === "object" &&
+                  !Array.isArray(backendService.metadata) &&
+                  backendService.metadata.marketplace &&
+                  typeof backendService.metadata.marketplace === "object" &&
+                  !Array.isArray(backendService.metadata.marketplace)
+                    ? backendService.metadata.marketplace
+                    : {}),
+                  coverImageUrl: validation.data.coverImageUrl,
+                },
                 fulfillment: buildServiceFulfillmentMetadata(
                   validation.data.executionMode,
                   validation.data.deliverableType,

@@ -1,6 +1,15 @@
 import { getPublicEnv } from "@/lib/env"
 
 type DeliverableProxyMode = "preview" | "download"
+export type DeliverableExportFormat = "source" | "html" | "docx" | "pdf" | "xlsx"
+type DeliverableMetadata = {
+  artifactId?: string
+  title?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  sizeBytes?: number | null
+  createdAt?: string | null
+}
 
 function normalizeOrigin(value: string | null | undefined) {
   if (!value) {
@@ -55,25 +64,10 @@ export function inferDeliverableFileName(input: {
     return input.fileName.trim()
   }
 
-  if (input.url) {
-    try {
-      const parsed = new URL(input.url)
-      const lastSegment = parsed.pathname.split("/").pop()?.trim()
-      if (lastSegment) {
-        return decodeURIComponent(lastSegment)
-      }
-    } catch {
-      const lastSegment = input.url.split("/").pop()?.split("?")[0]?.trim()
-      if (lastSegment) {
-        return lastSegment
-      }
-    }
-  }
-
   const safeTitle = input.fallbackTitle?.trim()
   const extension = getDeliverableExtension(input)
   if (!safeTitle) {
-    return extension ? `deliverable.${extension}` : "deliverable.bin"
+    return null
   }
 
   const slug = safeTitle
@@ -83,7 +77,7 @@ export function inferDeliverableFileName(input: {
     .slice(0, 80)
 
   if (!slug) {
-    return extension ? `deliverable.${extension}` : "deliverable.bin"
+    return null
   }
 
   return extension ? `${slug}.${extension}` : slug
@@ -112,6 +106,7 @@ function buildDeliverableProxyUrl(
   options?: {
     fileName?: string | null
     formatLabel?: string | null
+    exportFormat?: DeliverableExportFormat | null
   },
 ) {
   if (!rawUrl) {
@@ -126,11 +121,7 @@ function buildDeliverableProxyUrl(
   params.set("url", rawUrl)
   params.set("mode", mode)
 
-  const fileName = inferDeliverableFileName({
-    url: rawUrl,
-    fileName: options?.fileName ?? null,
-    formatLabel: options?.formatLabel ?? null,
-  })
+  const fileName = options?.fileName?.trim()
   if (fileName) {
     params.set("fileName", fileName)
   }
@@ -138,6 +129,10 @@ function buildDeliverableProxyUrl(
   const formatLabel = options?.formatLabel?.trim()
   if (formatLabel) {
     params.set("format", formatLabel)
+  }
+
+  if (options?.exportFormat && options.exportFormat !== "source") {
+    params.set("export", options.exportFormat)
   }
 
   return `/api/deliverables?${params.toString()}`
@@ -158,7 +153,90 @@ export function buildDeliverableDownloadUrl(
   options?: {
     fileName?: string | null
     formatLabel?: string | null
+    exportFormat?: DeliverableExportFormat | null
   },
 ) {
   return buildDeliverableProxyUrl(rawUrl, "download", options)
+}
+
+export function buildDeliverableMetaUrl(rawUrl: string | null | undefined) {
+  if (!rawUrl || !shouldProxyDeliverableUrl(rawUrl)) {
+    return null
+  }
+
+  const params = new URLSearchParams()
+  params.set("url", rawUrl)
+  params.set("meta", "1")
+  return `/api/deliverables?${params.toString()}`
+}
+
+function getFileNameFromContentDisposition(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(value)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const basicMatch = /filename=\"?([^\";]+)\"?/i.exec(value)
+  return basicMatch?.[1]?.trim() ?? null
+}
+
+export async function fetchDeliverableMetadata(rawUrl: string) {
+  const metaUrl = buildDeliverableMetaUrl(rawUrl)
+  if (!metaUrl) {
+    return null
+  }
+
+  const response = await fetch(metaUrl, {
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Metadata lookup returned ${response.status}`)
+  }
+
+  return (await response.json()) as DeliverableMetadata
+}
+
+export async function downloadDeliverableToDevice(input: {
+  rawUrl: string
+  fileName?: string | null
+  formatLabel?: string | null
+  exportFormat?: DeliverableExportFormat | null
+}) {
+  const downloadUrl =
+    buildDeliverableDownloadUrl(input.rawUrl, {
+      fileName: input.fileName,
+      formatLabel: input.formatLabel,
+      exportFormat: input.exportFormat,
+    }) ?? input.rawUrl
+
+  const response = await fetch(downloadUrl, {
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Download returned ${response.status}`)
+  }
+
+  const blob = await response.blob()
+  const responseFileName =
+    getFileNameFromContentDisposition(response.headers.get("content-disposition")) ??
+    input.fileName ??
+    "deliverable.bin"
+  const objectUrl = URL.createObjectURL(blob)
+
+  try {
+    const link = document.createElement("a")
+    link.href = objectUrl
+    link.download = responseFileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  }
 }

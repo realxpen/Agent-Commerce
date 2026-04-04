@@ -21,6 +21,22 @@ export async function artifactRoutes(app: FastifyInstance) {
     const { artifactId } = artifactParamsSchema.parse(request.params ?? {});
     const query = artifactQuerySchema.parse(request.query ?? {});
     const preferDownload = isTruthyFlag(query.download);
+    const preferMetadata = isTruthyFlag(query.meta);
+
+    if (preferMetadata) {
+      const artifactFile = await getGeneratedArtifactFile(artifactId);
+
+      reply.header("cache-control", "no-store");
+
+      return reply.send({
+        artifactId: artifactFile.metadata.artifactId,
+        title: artifactFile.metadata.title,
+        fileName: artifactFile.metadata.fileName,
+        contentType: artifactFile.metadata.contentType,
+        sizeBytes: artifactFile.metadata.sizeBytes,
+        createdAt: artifactFile.metadata.createdAt,
+      });
+    }
 
     if (query.preview === "html") {
       const artifactFile = await getGeneratedArtifactFile(artifactId);

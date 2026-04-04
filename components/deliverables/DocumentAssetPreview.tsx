@@ -18,6 +18,8 @@ type TextDocumentBlock =
   | { type: "paragraph"; content: string }
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "quote"; items: string[] }
+  | { type: "code"; language: string | null; content: string }
+  | { type: "table"; header: string[]; rows: string[][] }
 
 function getFileExtension(value: string | null | undefined) {
   if (!value) {
@@ -66,6 +68,53 @@ function sanitizeHtmlDocument(rawHtml: string) {
   return document.body.innerHTML.trim()
 }
 
+function isMarkdownTableDivider(value: string) {
+  return /^\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?$/.test(value.trim())
+}
+
+function splitMarkdownTableRow(value: string) {
+  return value
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim())
+}
+
+function stripInternalBundleSections(value: string) {
+  const blockedHeadings = new Set([
+    "downloadable artifacts",
+    "tool runner notes",
+    "customer message",
+    "follow-up questions",
+  ])
+  const lines = value.replace(/\r\n?/g, "\n").split("\n")
+  const sanitized: string[] = []
+  let skipping = false
+
+  for (const line of lines) {
+    const headingMatch = line.trim().match(/^##\s+(.+)$/)
+    if (headingMatch) {
+      const heading = headingMatch[1].trim().toLowerCase()
+      skipping = blockedHeadings.has(heading)
+      if (skipping) {
+        continue
+      }
+    }
+
+    if (skipping) {
+      continue
+    }
+
+    sanitized.push(line)
+  }
+
+  return sanitized
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 function parseTextDocument(value: string): TextDocumentBlock[] {
   const lines = value.replace(/\r\n?/g, "\n").split("\n")
   const blocks: TextDocumentBlock[] = []
@@ -77,6 +126,52 @@ function parseTextDocument(value: string): TextDocumentBlock[] {
 
     if (!trimmedLine) {
       index += 1
+      continue
+    }
+
+    if (trimmedLine.startsWith("```")) {
+      const language = trimmedLine.slice(3).trim() || null
+      const codeLines: string[] = []
+      index += 1
+
+      while (index < lines.length && !(lines[index] ?? "").trim().startsWith("```")) {
+        codeLines.push(lines[index] ?? "")
+        index += 1
+      }
+
+      if (index < lines.length) {
+        index += 1
+      }
+
+      blocks.push({
+        type: "code",
+        language,
+        content: codeLines.join("\n").trimEnd(),
+      })
+      continue
+    }
+
+    const nextLine = (lines[index + 1] ?? "").trim()
+    if (trimmedLine.includes("|") && isMarkdownTableDivider(nextLine)) {
+      const header = splitMarkdownTableRow(trimmedLine)
+      const rows: string[][] = []
+      index += 2
+
+      while (index < lines.length) {
+        const candidate = (lines[index] ?? "").trim()
+        if (!candidate || !candidate.includes("|")) {
+          break
+        }
+
+        rows.push(splitMarkdownTableRow(candidate))
+        index += 1
+      }
+
+      blocks.push({
+        type: "table",
+        header,
+        rows,
+      })
       continue
     }
 
@@ -170,10 +265,13 @@ function parseTextDocument(value: string): TextDocumentBlock[] {
       }
 
       if (
+        nextTrimmedLine.startsWith("```") ||
         /^(#{1,3})\s+/.test(nextTrimmedLine) ||
         /^[-*]\s+/.test(nextTrimmedLine) ||
         /^\d+\.\s+/.test(nextTrimmedLine) ||
-        /^>\s?/.test(nextTrimmedLine)
+        /^>\s?/.test(nextTrimmedLine) ||
+        (nextTrimmedLine.includes("|") &&
+          isMarkdownTableDivider((lines[index + 1] ?? "").trim()))
       ) {
         break
       }
@@ -192,7 +290,8 @@ function parseTextDocument(value: string): TextDocumentBlock[] {
 }
 
 function renderInlineText(value: string) {
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)/g
+  const pattern =
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*|(https?:\/\/[^\s]+)/g
   const nodes: React.ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -202,19 +301,49 @@ function renderInlineText(value: string) {
       nodes.push(value.slice(lastIndex, match.index))
     }
 
-    const href = match[2] ?? match[3]
-    const label = match[1] ?? href
-
-    if (href) {
+    if (match[1] && match[2]) {
       nodes.push(
         <a
-          key={`${href}-${match.index}`}
-          href={href}
+          key={`${match[2]}-${match.index}`}
+          href={match[2]}
           target="_blank"
           rel="noreferrer"
           className="font-medium text-indigo-700 underline decoration-indigo-300 underline-offset-4"
         >
-          {label}
+          {match[1]}
+        </a>,
+      )
+    } else if (match[3]) {
+      nodes.push(
+        <strong key={`bold-${match.index}`} className="font-semibold text-slate-900">
+          {match[3]}
+        </strong>,
+      )
+    } else if (match[4]) {
+      nodes.push(
+        <code
+          key={`code-${match.index}`}
+          className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[0.92em] text-slate-900"
+        >
+          {match[4]}
+        </code>,
+      )
+    } else if (match[5]) {
+      nodes.push(
+        <em key={`italic-${match.index}`} className="italic text-slate-800">
+          {match[5]}
+        </em>,
+      )
+    } else if (match[6]) {
+      nodes.push(
+        <a
+          key={`${match[6]}-${match.index}`}
+          href={match[6]}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-indigo-700 underline decoration-indigo-300 underline-offset-4"
+        >
+          {match[6]}
         </a>,
       )
     }
@@ -239,6 +368,7 @@ export function DocumentAssetPreview({
 }: DocumentAssetPreviewProps) {
   const [textPreview, setTextPreview] = useState<string | null>(null)
   const [htmlPreview, setHtmlPreview] = useState<string | null>(null)
+  const [isPdfPreview, setIsPdfPreview] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -253,6 +383,7 @@ export function DocumentAssetPreview({
     if (!url) {
       setTextPreview(null)
       setHtmlPreview(null)
+      setIsPdfPreview(false)
       setError("This document does not have a preview file attached yet.")
       setIsLoading(false)
       return
@@ -260,6 +391,7 @@ export function DocumentAssetPreview({
 
     setTextPreview(null)
     setHtmlPreview(null)
+    setIsPdfPreview(false)
     setError(null)
     setIsLoading(true)
 
@@ -269,16 +401,33 @@ export function DocumentAssetPreview({
           throw new Error(`Document preview returned ${response.status}`)
         }
 
+        const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+        if (contentType.includes("application/pdf")) {
+          if (!mounted) {
+            return
+          }
+
+          setIsPdfPreview(true)
+          setTextPreview(null)
+          setHtmlPreview(null)
+          setIsLoading(false)
+          return
+        }
+
         const rawText = await response.text()
         if (!mounted) {
           return
         }
 
-        if (extension === "docx" || looksLikeHtmlDocument(rawText)) {
+        if (
+          extension === "docx" ||
+          contentType.includes("text/html") ||
+          looksLikeHtmlDocument(rawText)
+        ) {
           setHtmlPreview(sanitizeHtmlDocument(rawText))
           setTextPreview(null)
         } else {
-          setTextPreview(rawText.trim())
+          setTextPreview(stripInternalBundleSections(rawText))
           setHtmlPreview(null)
         }
 
@@ -356,6 +505,14 @@ export function DocumentAssetPreview({
                   </div>
                 </div>
               </div>
+            ) : isPdfPreview ? (
+              <div className={cn(compact ? "h-[26rem]" : "h-[58vh]")}>
+                <iframe
+                  title={`${title} PDF preview`}
+                  src={url}
+                  className="h-full w-full"
+                />
+              </div>
             ) : (
               <article
                 className={cn(
@@ -422,6 +579,64 @@ export function DocumentAssetPreview({
                             </li>
                           ))}
                         </ListTag>
+                      )
+                    }
+
+                    if (block.type === "code") {
+                      return (
+                        <div
+                          key={`code-${index}`}
+                          className="my-6 overflow-hidden rounded-[18px] border border-slate-200 bg-[#0f172a]"
+                        >
+                          {block.language ? (
+                            <div className="border-b border-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">
+                              {block.language}
+                            </div>
+                          ) : null}
+                          <pre className="overflow-x-auto px-4 py-4 text-sm leading-7 text-slate-100">
+                            <code>{block.content}</code>
+                          </pre>
+                        </div>
+                      )
+                    }
+
+                    if (block.type === "table") {
+                      return (
+                        <div
+                          key={`table-${index}`}
+                          className="my-6 overflow-hidden rounded-[18px] border border-slate-200"
+                        >
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse text-sm text-slate-700">
+                              <thead className="bg-slate-50">
+                                <tr>
+                                  {block.header.map((cell, cellIndex) => (
+                                    <th
+                                      key={`table-head-${index}-${cellIndex}`}
+                                      className="border border-slate-200 px-3 py-2 text-left font-semibold"
+                                    >
+                                      {cell || `Column ${cellIndex + 1}`}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {block.rows.map((row, rowIndex) => (
+                                  <tr key={`table-row-${index}-${rowIndex}`}>
+                                    {block.header.map((_, cellIndex) => (
+                                      <td
+                                        key={`table-cell-${index}-${rowIndex}-${cellIndex}`}
+                                        className="border border-slate-200 px-3 py-2 align-top"
+                                      >
+                                        {row[cellIndex] || ""}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       )
                     }
 

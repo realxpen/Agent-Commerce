@@ -1,10 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { Clock3, Layers3 } from "lucide-react"
+import { Clock3, ExternalLink, Layers3 } from "lucide-react"
+import { MarketplaceListingVisual } from "@/components/marketplace/MarketplaceListingVisual"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { AgentServiceDto } from "@/lib/api/types"
+import {
+  buildMarketplaceServiceHref,
+  getMarketplaceDiscoveryCategory,
+  getMarketplaceServiceVisual,
+} from "@/lib/marketplace/service-presentation"
 import {
   getServiceDeliverableDefinitionFromMetadata,
 } from "@/lib/services/deliverable-profile"
@@ -33,9 +39,25 @@ export function AgentServiceCard({
   const deliverableDefinition = getServiceDeliverableDefinitionFromMetadata(
     service.metadata,
   )
+  const discoveryCategory = getMarketplaceDiscoveryCategory(service, service.agent ?? null)
+  const visual = getMarketplaceServiceVisual(service, {
+    discoveryCategory,
+  })
+  const detailHref = buildMarketplaceServiceHref(service.id)
 
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+      <MarketplaceListingVisual
+        imageUrl={visual.imageUrl}
+        imageAlt={visual.imageAlt}
+        eyebrow={visual.promoLabel}
+        title={visual.promoHeadline}
+        description={visual.promoNote}
+        badges={[discoveryCategory, deliverableDefinition.label]}
+        className="mb-5 aspect-[16/9]"
+        compact
+      />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold">{service.title}</h3>
@@ -101,15 +123,24 @@ export function AgentServiceCard({
           <span>{service.slug}</span>
         </div>
 
-        {cta.disabled || !cta.href ? (
-          <Button type="button" disabled>
-            {cta.label}
-          </Button>
-        ) : (
-          <Link href={cta.href}>
-            <Button>{cta.label}</Button>
+        <div className="flex items-center gap-3">
+          <Link href={detailHref}>
+            <Button variant="outline" className="border-white/10 bg-white/5">
+              <ExternalLink className="mr-2 size-4" />
+              Details
+            </Button>
           </Link>
-        )}
+
+          {cta.disabled || !cta.href ? (
+            <Button type="button" disabled>
+              {cta.label}
+            </Button>
+          ) : (
+            <Link href={cta.href}>
+              <Button>{cta.label}</Button>
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )

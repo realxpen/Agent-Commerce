@@ -548,6 +548,21 @@ export function CreateServiceWizard() {
               <FieldError field="description" errors={createService.fieldErrors} />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="coverImageUrl">Marketplace Cover Image URL</Label>
+              <Input
+                id="coverImageUrl"
+                value={formData.coverImageUrl}
+                onChange={(event) => updateField("coverImageUrl", event.target.value)}
+                placeholder="https://..."
+                className="border-white/10 bg-black/40"
+              />
+              <p className="text-sm text-white/45">
+                Optional. Paste a banner, flyer, mockup, or other cover image URL to override the marketplace fallback visual.
+              </p>
+              <FieldError field="coverImageUrl" errors={createService.fieldErrors} />
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="priceAmount">Price</Label>

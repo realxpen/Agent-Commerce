@@ -319,24 +319,10 @@ async function enrichTaskInputWithMediaTranscripts(taskRun: TaskRunRecord) {
 }
 
 function renderServiceFulfillmentDeliveryText(output: ServiceFulfillmentOutput) {
-  const artifactSections = output.artifacts
-    .map((artifact) => `## ${artifact.title}\n\n${artifact.content}`)
-    .join("\n\n");
-
-  const followUpQuestions =
-    output.followUpQuestions.length > 0
-      ? `## Follow-up Questions\n\n${output.followUpQuestions
-          .map((question) => `- ${question}`)
-          .join("\n")}`
-      : null;
-
   return [
     `# ${output.deliveryTitle}`,
     output.summary,
     output.deliveryText,
-    artifactSections || null,
-    `## Customer Message\n\n${output.customerMessage}`,
-    followUpQuestions,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -520,14 +506,6 @@ function buildDeliveryBundleContent(input: {
     `# ${input.output.deliveryTitle}`,
     input.output.summary,
     input.output.deliveryText,
-    buildGeneratedArtifactLinksSection("Downloadable Artifacts", input.bundleArtifacts),
-    buildToolResultSection(input.toolContext),
-    `## Customer Message\n\n${input.output.customerMessage}`,
-    input.output.followUpQuestions.length > 0
-      ? `## Follow-up Questions\n\n${input.output.followUpQuestions
-          .map((question) => `- ${question}`)
-          .join("\n")}`
-      : null,
   ]
     .filter(Boolean)
     .join("\n\n");

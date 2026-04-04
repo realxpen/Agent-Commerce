@@ -33,8 +33,11 @@ import { PresentationAssetPreview } from "@/components/deliverables/Presentation
 import { WeightsAssetPreview } from "@/components/deliverables/WeightsAssetPreview"
 import {
   buildDeliverableDownloadUrl,
+  buildDeliverableMetaUrl,
   buildDeliverablePreviewUrl,
-  inferDeliverableFileName,
+  type DeliverableExportFormat,
+  downloadDeliverableToDevice,
+  fetchDeliverableMetadata,
 } from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
@@ -65,6 +68,12 @@ export type DeliverablePreviewItem = {
   sourceLabel?: string | null
   dateLabel?: string | null
   sizeLabel?: string | null
+}
+
+type ResolvedDeliverableMetadata = {
+  fileName: string | null
+  formatLabel: string
+  type: PreviewAssetType
 }
 
 const typeMeta = {
@@ -237,10 +246,6 @@ export function inferPreviewAssetType(input: {
   return "document"
 }
 
-function isPdfPreview(item: DeliverablePreviewItem) {
-  return item.formatLabel.toLowerCase() === "pdf" || getPreviewExtension(item) === "pdf"
-}
-
 function canFetchTextPreview(item: DeliverablePreviewItem) {
   if (!item.previewUrl) {
     return false
@@ -305,7 +310,7 @@ function renderCsvPreviewRows(rawText: string) {
               <tr key={rowIndex} className="border-t border-white/5">
                 {row.map((cell, cellIndex) => (
                   <td key={`${rowIndex}-${cellIndex}`} className="px-4 py-3 text-white/55">
-                    {cell || "—"}
+                    {cell || "N/A"}
                   </td>
                 ))}
               </tr>
@@ -329,41 +334,96 @@ export function DeliverablePreviewDialog({
   const [textPreview, setTextPreview] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
-  const previewUrl = useMemo(
-    () =>
-      item
-        ? buildDeliverablePreviewUrl(item.previewUrl, {
-            fileName: item.fileName,
-            formatLabel: item.formatLabel,
-          })
-        : null,
-    [item],
-  )
-  const downloadUrl = useMemo(
-    () =>
-      item
-        ? buildDeliverableDownloadUrl(item.downloadUrl, {
-            fileName: item.fileName,
-            formatLabel: item.formatLabel,
-          })
-        : null,
-    [item],
-  )
-  const downloadFileName = useMemo(
-    () =>
-      item
-        ? inferDeliverableFileName({
-            url: item.downloadUrl ?? item.previewUrl,
-            fileName: item.fileName,
-            fallbackTitle: item.title,
-            formatLabel: item.formatLabel,
-          })
-        : null,
+  const [resolvedMetadata, setResolvedMetadata] = useState<ResolvedDeliverableMetadata | null>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const metadataUrl = useMemo(
+    () => (item ? buildDeliverableMetaUrl(item.previewUrl ?? item.downloadUrl) : null),
     [item],
   )
 
   useEffect(() => {
-    if (!open || !item || !previewUrl || !canFetchTextPreview(item)) {
+    let mounted = true
+
+    if (!open || !item || !metadataUrl) {
+      setResolvedMetadata(null)
+      return
+    }
+
+    fetchDeliverableMetadata(item.previewUrl ?? item.downloadUrl ?? "")
+      .then((metadata) => {
+        if (!mounted || !metadata) {
+          return
+        }
+
+        const effectiveFileName = metadata.fileName ?? item.fileName ?? null
+        const effectiveFormatLabel =
+          getPreviewExtension({
+            fileName: effectiveFileName,
+            previewUrl: item.previewUrl,
+            downloadUrl: item.downloadUrl,
+          })?.toUpperCase() ??
+          item.formatLabel
+        const effectiveType = inferPreviewAssetType({
+          previewUrl: item.previewUrl,
+          downloadUrl: item.downloadUrl,
+          fileName: effectiveFileName,
+          formatLabel: effectiveFormatLabel,
+          title: item.title,
+        })
+
+        setResolvedMetadata({
+          fileName: effectiveFileName,
+          formatLabel: effectiveFormatLabel,
+          type: effectiveType,
+        })
+      })
+      .catch(() => {
+        if (mounted) {
+          setResolvedMetadata(null)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [item, metadataUrl, open])
+
+  const effectiveItem = useMemo(() => {
+    if (!item) {
+      return null
+    }
+
+    return {
+      ...item,
+      fileName: resolvedMetadata?.fileName ?? item.fileName,
+      formatLabel: resolvedMetadata?.formatLabel ?? item.formatLabel,
+      type: resolvedMetadata?.type ?? item.type,
+    }
+  }, [item, resolvedMetadata])
+  const previewUrl = useMemo(
+    () =>
+      effectiveItem
+        ? buildDeliverablePreviewUrl(effectiveItem.previewUrl, {
+            fileName: effectiveItem.fileName,
+            formatLabel: effectiveItem.formatLabel,
+          })
+        : null,
+    [effectiveItem],
+  )
+  const downloadUrl = useMemo(
+    () =>
+      effectiveItem
+        ? buildDeliverableDownloadUrl(effectiveItem.downloadUrl, {
+            fileName: effectiveItem.fileName,
+            formatLabel: effectiveItem.formatLabel,
+          })
+        : null,
+    [effectiveItem],
+  )
+  const downloadFileName = useMemo(() => effectiveItem?.fileName ?? null, [effectiveItem])
+
+  useEffect(() => {
+    if (!open || !effectiveItem || !previewUrl || !canFetchTextPreview(effectiveItem)) {
       setTextPreview(null)
       setPreviewError(null)
       setIsLoadingPreview(false)
@@ -385,7 +445,7 @@ export function DeliverablePreviewDialog({
         }
 
         const rawText = await response.text()
-        setTextPreview(formatPreviewText(rawText, item))
+        setTextPreview(formatPreviewText(rawText, effectiveItem))
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
@@ -403,26 +463,26 @@ export function DeliverablePreviewDialog({
       })
 
     return () => controller.abort()
-  }, [item, open, previewUrl])
+  }, [effectiveItem, open, previewUrl])
 
   const previewContent = useMemo(() => {
-    if (!item) {
+    if (!effectiveItem) {
       return null
     }
 
-    if (item.type === "document" && !isPdfPreview(item) && previewUrl) {
+    if (effectiveItem.type === "document" && previewUrl) {
       return (
         <DocumentAssetPreview
           url={previewUrl}
-          title={item.title}
-          fileName={item.fileName}
-          formatLabel={item.formatLabel}
-          description={item.description}
+          title={effectiveItem.title}
+          fileName={effectiveItem.fileName}
+          formatLabel={effectiveItem.formatLabel}
+          description={effectiveItem.description}
         />
       )
     }
 
-    if (item.type === "design" && previewUrl) {
+    if (effectiveItem.type === "design" && previewUrl) {
       return (
         <div className="overflow-hidden rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
           <div className="overflow-hidden rounded-[18px] border border-white/8 bg-[#080808]">
@@ -430,12 +490,12 @@ export function DeliverablePreviewDialog({
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
                 Design preview
               </div>
-              <div className="text-xs text-white/35">{item.formatLabel}</div>
+                <div className="text-xs text-white/35">{effectiveItem.formatLabel}</div>
             </div>
             <div className="flex min-h-[340px] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_45%),#070707] p-5">
               <img
                 src={previewUrl}
-                alt={item.title}
+                alt={effectiveItem.title}
                 className="max-h-[52vh] w-full rounded-[16px] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
               />
             </div>
@@ -444,7 +504,7 @@ export function DeliverablePreviewDialog({
       )
     }
 
-    if (item.type === "video" && previewUrl) {
+    if (effectiveItem.type === "video" && previewUrl) {
       return (
         <div className="overflow-hidden rounded-[18px] border border-white/8 bg-black">
           <video
@@ -457,7 +517,7 @@ export function DeliverablePreviewDialog({
       )
     }
 
-    if (item.type === "audio" && previewUrl) {
+    if (effectiveItem.type === "audio" && previewUrl) {
       return (
         <div className="rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-8 py-10">
           <div className="mx-auto flex max-w-xl flex-col items-center gap-6 text-center">
@@ -465,7 +525,7 @@ export function DeliverablePreviewDialog({
               <PlayCircle className="h-8 w-8" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-white">{item.title}</p>
+              <p className="text-lg font-semibold text-white">{effectiveItem.title}</p>
               <p className="mt-2 text-sm text-white/45">
                 Listen to the delivered audio sample directly here.
               </p>
@@ -476,32 +536,32 @@ export function DeliverablePreviewDialog({
       )
     }
 
-    if (item.type === "model") {
+    if (effectiveItem.type === "model") {
       return (
         <ModelAssetPreview
           url={previewUrl ?? downloadUrl ?? ""}
-          fileName={item.fileName}
-          formatLabel={item.formatLabel}
-          title={item.title}
+          fileName={effectiveItem.fileName}
+          formatLabel={effectiveItem.formatLabel}
+          title={effectiveItem.title}
         />
       )
     }
 
-    if (item.type === "presentation") {
+    if (effectiveItem.type === "presentation") {
       return (
         <PresentationAssetPreview
           url={previewUrl ?? downloadUrl ?? ""}
-          fileName={item.fileName}
-          formatLabel={item.formatLabel}
-          title={item.title}
+          fileName={effectiveItem.fileName}
+          formatLabel={effectiveItem.formatLabel}
+          title={effectiveItem.title}
         />
       )
     }
 
-    if (item.type === "deployment") {
+    if (effectiveItem.type === "deployment") {
       return previewUrl ? (
         <div className="overflow-hidden rounded-[18px] border border-white/8 bg-black">
-          <iframe title={`${item.title} deployment preview`} src={previewUrl} className="h-[58vh] w-full bg-white" />
+          <iframe title={`${effectiveItem.title} deployment preview`} src={previewUrl} className="h-[58vh] w-full bg-white" />
         </div>
       ) : (
         <div className="rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(14,165,233,0.14),rgba(255,255,255,0.02))] p-8">
@@ -510,7 +570,7 @@ export function DeliverablePreviewDialog({
               <Globe className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xl font-semibold text-white">{item.title}</p>
+              <p className="text-xl font-semibold text-white">{effectiveItem.title}</p>
               <p className="mt-2 text-sm leading-7 text-white/55">
                 Web deployments can show live preview links directly inside the deliverables dashboard when a hosted URL is attached.
               </p>
@@ -520,36 +580,18 @@ export function DeliverablePreviewDialog({
       )
     }
 
-    if (item.type === "weights") {
+    if (effectiveItem.type === "weights") {
       return (
         <WeightsAssetPreview
           url={previewUrl ?? downloadUrl ?? ""}
-          fileName={item.fileName}
-          formatLabel={item.formatLabel}
-          title={item.title}
+          fileName={effectiveItem.fileName}
+          formatLabel={effectiveItem.formatLabel}
+          title={effectiveItem.title}
         />
       )
     }
 
-    if (isPdfPreview(item) && previewUrl) {
-      return (
-        <div className="overflow-hidden rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
-          <div className="overflow-hidden rounded-[18px] border border-white/8 bg-white">
-            <div className="flex items-center justify-between border-b border-black/10 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-black/45">
-              <span>PDF preview</span>
-              <span>{item.formatLabel}</span>
-            </div>
-            <iframe
-              title={`${item.title} preview`}
-              src={previewUrl}
-              className="h-[58vh] w-full"
-            />
-          </div>
-        </div>
-      )
-    }
-
-    if (canFetchTextPreview(item)) {
+    if (canFetchTextPreview(effectiveItem)) {
       if (isLoadingPreview) {
         return (
           <div className="flex min-h-[360px] items-center justify-center rounded-[18px] border border-white/8 bg-[#0b0b0b]">
@@ -574,8 +616,8 @@ export function DeliverablePreviewDialog({
 
       if (
         textPreview &&
-        (item.type === "data" || item.type === "spreadsheet") &&
-        item.formatLabel.toLowerCase() === "csv"
+        (effectiveItem.type === "data" || effectiveItem.type === "spreadsheet") &&
+        effectiveItem.formatLabel.toLowerCase() === "csv"
       ) {
         const csvPreview = renderCsvPreviewRows(textPreview)
         if (csvPreview) {
@@ -587,13 +629,13 @@ export function DeliverablePreviewDialog({
         return (
           <div className="overflow-hidden rounded-[18px] border border-white/8 bg-[#101010]">
             <div className="border-b border-white/8 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
-              {item.type === "contract"
+              {effectiveItem.type === "contract"
                 ? "Smart contract source"
-                : item.type === "spreadsheet"
+                : effectiveItem.type === "spreadsheet"
                   ? "Spreadsheet preview"
-                  : item.type === "data"
+                  : effectiveItem.type === "data"
                     ? "Structured data preview"
-                    : item.type === "code"
+                    : effectiveItem.type === "code"
                       ? "Code preview"
                       : "Document preview"}
             </div>
@@ -608,33 +650,87 @@ export function DeliverablePreviewDialog({
     return (
       <div className="rounded-[18px] border border-white/8 bg-[#0b0b0b] p-8">
         <p className="text-sm leading-7 text-white/55">
-          {item.description ?? "This delivered asset is ready to open or download."}
+          {effectiveItem?.description ?? "This delivered asset is ready to open or download."}
         </p>
       </div>
     )
-  }, [downloadUrl, isLoadingPreview, item, previewError, previewUrl, textPreview])
+  }, [downloadUrl, effectiveItem, isLoadingPreview, previewError, previewUrl, textPreview])
 
   const metaBits = [
-    item?.formatLabel || null,
-    item?.sizeLabel || null,
-    !item?.sizeLabel ? item?.sourceLabel || null : null,
+    effectiveItem?.formatLabel || null,
+    effectiveItem?.sizeLabel || null,
+    !effectiveItem?.sizeLabel ? effectiveItem?.sourceLabel || null : null,
   ].filter((value): value is string => Boolean(value))
+  const downloadOptions = useMemo(() => {
+    if (!effectiveItem) {
+      return []
+    }
+
+    const normalizedFormat = effectiveItem.formatLabel.toLowerCase()
+
+    if (
+      effectiveItem.type === "document" &&
+      ["md", "markdown", "txt", "html", "htm"].includes(normalizedFormat)
+    ) {
+      return [
+        { label: "Download Word", exportFormat: "docx" as DeliverableExportFormat, primary: true },
+        { label: "Download PDF", exportFormat: "pdf" as DeliverableExportFormat, primary: false },
+        { label: "Download Source", exportFormat: "source" as DeliverableExportFormat, primary: false },
+      ]
+    }
+
+    if (
+      (effectiveItem.type === "data" || effectiveItem.type === "spreadsheet") &&
+      ["csv", "json"].includes(normalizedFormat)
+    ) {
+      return [
+        { label: "Download Excel", exportFormat: "xlsx" as DeliverableExportFormat, primary: true },
+        { label: "Download Source", exportFormat: "source" as DeliverableExportFormat, primary: false },
+      ]
+    }
+
+    if (effectiveItem.type === "code" || effectiveItem.type === "contract") {
+      return [
+        { label: "Download PDF", exportFormat: "pdf" as DeliverableExportFormat, primary: true },
+        { label: "Download Word", exportFormat: "docx" as DeliverableExportFormat, primary: false },
+        { label: "Download Source", exportFormat: "source" as DeliverableExportFormat, primary: false },
+      ]
+    }
+
+    if (
+      effectiveItem.type === "design" &&
+      ["png", "jpg", "jpeg"].includes(normalizedFormat)
+    ) {
+      return [
+        { label: `Download ${effectiveItem.formatLabel}`, exportFormat: "source" as DeliverableExportFormat, primary: true },
+        { label: "Download PDF", exportFormat: "pdf" as DeliverableExportFormat, primary: false },
+      ]
+    }
+
+    return [
+      {
+        label: `Download ${effectiveItem.formatLabel}`,
+        exportFormat: "source" as DeliverableExportFormat,
+        primary: true,
+      },
+    ]
+  }, [effectiveItem])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[920px] overflow-hidden rounded-[24px] border-white/10 bg-[#111111] p-0 text-white shadow-[0_20px_90px_rgba(0,0,0,0.55)]">
-        {item ? (
+        {item && effectiveItem ? (
           <>
             <DialogHeader className="border-b border-white/8 px-6 py-5 text-left">
               <div className="flex items-start gap-4 pr-8">
                 <div
                   className={cn(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
-                    typeMeta[item.type].className,
+                    typeMeta[effectiveItem.type].className,
                   )}
                 >
                   {(() => {
-                    const Icon = typeMeta[item.type].icon
+                    const Icon = typeMeta[effectiveItem.type].icon
                     return <Icon className="h-4.5 w-4.5" />
                   })()}
                 </div>
@@ -646,7 +742,7 @@ export function DeliverablePreviewDialog({
                   <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-white/30">
                     {metaBits.map((bit, index) => (
                       <span key={`${bit}-${index}`} className="inline-flex items-center gap-2">
-                        {index > 0 ? <span className="text-white/20">•</span> : null}
+                        {index > 0 ? <span className="text-white/20">/</span> : null}
                         <span>{bit}</span>
                       </span>
                     ))}
@@ -663,27 +759,53 @@ export function DeliverablePreviewDialog({
               <div className="flex items-center gap-2 text-sm text-white/38">
                 <span className="text-white/25">Generated by</span>
                 <span className="font-medium text-white/65">
-                  {item.agentName ?? item.subtitle ?? "AgentCommerce"}
+                  {effectiveItem?.agentName ?? effectiveItem?.subtitle ?? "AgentCommerce"}
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                {item.sourceLabel ? (
+                {effectiveItem?.sourceLabel ? (
                   <Badge variant="outline" className="hidden border-white/10 bg-white/[0.03] text-white/45 sm:inline-flex">
-                    {item.sourceLabel}
+                    {effectiveItem.sourceLabel}
                   </Badge>
                 ) : null}
-                {downloadUrl ? (
-                  <Button asChild className="bg-indigo-600 text-white hover:bg-indigo-500">
-                    <a
-                      href={downloadUrl}
-                      download={downloadFileName ?? undefined}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download {item.formatLabel}
-                    </a>
-                  </Button>
-                ) : null}
+                {downloadUrl
+                  ? downloadOptions.map((option) => (
+                      <Button
+                        key={option.label}
+                        variant={option.primary ? "default" : "outline"}
+                        className={
+                          option.primary
+                            ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                            : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                        }
+                        disabled={isDownloading}
+                        onClick={() => {
+                          const rawUrl = item?.downloadUrl ?? item?.previewUrl
+                          if (!rawUrl) {
+                            return
+                          }
+
+                          setIsDownloading(true)
+                          void downloadDeliverableToDevice({
+                            rawUrl,
+                            fileName: downloadFileName,
+                            formatLabel: effectiveItem?.formatLabel ?? item?.formatLabel,
+                            exportFormat: option.exportFormat,
+                          }).finally(() => {
+                            setIsDownloading(false)
+                          })
+                        }}
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+                        {option.label}
+                      </Button>
+                    ))
+                  : null}
               </div>
             </div>
           </>

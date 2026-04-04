@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Bot,
   Box,
@@ -46,7 +46,9 @@ import type {
 import {
   buildDeliverableDownloadUrl,
   buildDeliverablePreviewUrl,
-  inferDeliverableFileName,
+  downloadDeliverableToDevice,
+  fetchDeliverableMetadata,
+  getDeliverableExtension,
 } from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
@@ -102,7 +104,8 @@ function getDeliveryVersionSourceLabel(value: "ai_task" | "owner_publish") {
 }
 
 function renderInlineContent(value: string) {
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)/g
+  const pattern =
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*|(https?:\/\/[^\s]+)/g
   const nodes: React.ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -126,14 +129,35 @@ function renderInlineContent(value: string) {
       )
     } else if (match[3]) {
       nodes.push(
+        <strong key={`bold-${match.index}`} className="font-semibold text-white">
+          {match[3]}
+        </strong>,
+      )
+    } else if (match[4]) {
+      nodes.push(
+        <code
+          key={`code-${match.index}`}
+          className="rounded-md border border-white/10 bg-white/8 px-1.5 py-0.5 font-mono text-[0.92em] text-white/92"
+        >
+          {match[4]}
+        </code>,
+      )
+    } else if (match[5]) {
+      nodes.push(
+        <em key={`italic-${match.index}`} className="italic text-white/88">
+          {match[5]}
+        </em>,
+      )
+    } else if (match[6]) {
+      nodes.push(
         <Link
-          key={`${match[3]}-${match.index}`}
-          href={match[3]}
+          key={`${match[6]}-${match.index}`}
+          href={match[6]}
           target="_blank"
           rel="noreferrer"
           className="font-medium text-indigo-300 underline decoration-indigo-500/40 underline-offset-4 transition hover:text-indigo-200"
         >
-          {match[3]}
+          {match[6]}
         </Link>,
       )
     }
@@ -148,12 +172,51 @@ function renderInlineContent(value: string) {
   return nodes.length > 0 ? nodes : value
 }
 
-function parseDeliveryContent(value: string | null | undefined): DeliveryBlock[] {
+function stripInternalBundleSections(value: string | null | undefined) {
   if (!value) {
+    return ""
+  }
+
+  const blockedHeadings = new Set([
+    "downloadable artifacts",
+    "tool runner notes",
+    "customer message",
+    "follow-up questions",
+  ])
+  const lines = value.replace(/\r\n?/g, "\n").split("\n")
+  const sanitized: string[] = []
+  let skipping = false
+
+  for (const line of lines) {
+    const headingMatch = line.trim().match(/^##\s+(.+)$/)
+    if (headingMatch) {
+      const heading = headingMatch[1].trim().toLowerCase()
+      skipping = blockedHeadings.has(heading)
+      if (skipping) {
+        continue
+      }
+    }
+
+    if (skipping) {
+      continue
+    }
+
+    sanitized.push(line)
+  }
+
+  return sanitized
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function parseDeliveryContent(value: string | null | undefined): DeliveryBlock[] {
+  const sanitizedValue = stripInternalBundleSections(value)
+  if (!sanitizedValue) {
     return []
   }
 
-  const lines = value.replace(/\r\n?/g, "\n").split("\n")
+  const lines = sanitizedValue.replace(/\r\n?/g, "\n").split("\n")
   const blocks: DeliveryBlock[] = []
   let index = 0
 
@@ -454,20 +517,6 @@ function buildDownloadHref(input: {
   })
 }
 
-function resolveDownloadFileName(input: {
-  url: string | null | undefined
-  fileName?: string | null
-  formatLabel?: string | null
-  title?: string | null
-}) {
-  return inferDeliverableFileName({
-    url: input.url,
-    fileName: input.fileName,
-    fallbackTitle: input.title,
-    formatLabel: input.formatLabel,
-  })
-}
-
 function looksLikeFileName(value: string | null | undefined) {
   return Boolean(value && /\.[a-z0-9]{2,8}$/i.test(value.trim()))
 }
@@ -528,15 +577,81 @@ function InlineDeliveryHero({
     | "audio"
   onPreview: () => void
 }) {
-  const resolvedFormatLabel = formatLabel ?? getUrlFormatLabel(fileName ?? url)
+  const [resolvedMetadata, setResolvedMetadata] = useState<{
+    fileName: string | null
+    formatLabel: string
+    type:
+      | "document"
+      | "code"
+      | "contract"
+      | "design"
+      | "data"
+      | "spreadsheet"
+      | "presentation"
+      | "model"
+      | "deployment"
+      | "weights"
+      | "video"
+      | "audio"
+  } | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+
+    setResolvedMetadata(null)
+
+    fetchDeliverableMetadata(url)
+      .then((metadata) => {
+        if (!mounted || !metadata) {
+          return
+        }
+
+        const effectiveFileName = metadata.fileName ?? fileName ?? null
+        const effectiveFormatLabel =
+          getDeliverableExtension({
+            fileName: effectiveFileName,
+            url,
+            formatLabel,
+          })?.toUpperCase() ??
+          formatLabel ??
+          getUrlFormatLabel(fileName ?? url)
+        const effectiveType = inferPreviewAssetType({
+          previewUrl: url,
+          downloadUrl: url,
+          fileName: effectiveFileName,
+          formatLabel: effectiveFormatLabel,
+          title,
+        })
+
+        setResolvedMetadata({
+          fileName: effectiveFileName,
+          formatLabel: effectiveFormatLabel,
+          type: effectiveType,
+        })
+      })
+      .catch(() => {
+        if (mounted) {
+          setResolvedMetadata(null)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fileName, formatLabel, title, url])
+
+  const resolvedFileName = resolvedMetadata?.fileName ?? fileName
+  const resolvedFormatLabel =
+    resolvedMetadata?.formatLabel ?? formatLabel ?? getUrlFormatLabel(fileName ?? url)
+  const resolvedType = resolvedMetadata?.type ?? type
   const previewAssetUrl =
     buildPreviewHref({
       url,
-      fileName,
+      fileName: resolvedFileName,
       formatLabel: resolvedFormatLabel,
     }) ?? url
 
-  if (type === "design") {
+  if (resolvedType === "design") {
     return (
       <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
         <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#080808]">
@@ -566,7 +681,7 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "video") {
+  if (resolvedType === "video") {
     return (
       <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black">
         <video
@@ -579,7 +694,7 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "audio") {
+  if (resolvedType === "audio") {
     return (
       <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),transparent_45%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-8">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 text-center">
@@ -602,13 +717,13 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "model") {
+  if (resolvedType === "model") {
     return (
       <div className="space-y-4">
         <ModelAssetPreview
           url={previewAssetUrl}
           title={title}
-          fileName={fileName}
+          fileName={resolvedFileName}
           formatLabel={resolvedFormatLabel}
           compact
         />
@@ -622,13 +737,13 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "presentation") {
+  if (resolvedType === "presentation") {
     return (
       <div className="space-y-4">
         <PresentationAssetPreview
           url={previewAssetUrl}
           title={title}
-          fileName={fileName}
+          fileName={resolvedFileName}
           formatLabel={resolvedFormatLabel}
           compact
         />
@@ -642,7 +757,7 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "deployment") {
+  if (resolvedType === "deployment") {
     return (
       <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black">
         <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-5 py-3">
@@ -660,13 +775,13 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "weights") {
+  if (resolvedType === "weights") {
     return (
       <div className="space-y-4">
         <WeightsAssetPreview
           url={previewAssetUrl}
           title={title}
-          fileName={fileName}
+          fileName={resolvedFileName}
           formatLabel={resolvedFormatLabel}
           compact
         />
@@ -680,30 +795,12 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "document" && resolvedFormatLabel.toLowerCase() === "pdf") {
-    return (
-      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white">
-        <div className="flex items-center justify-between border-b border-black/10 px-5 py-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-black/55">
-            <FileText className="h-4 w-4" />
-            PDF preview
-          </div>
-          <Button type="button" variant="outline" className="border-black/10 bg-white text-black hover:bg-black/5" onClick={onPreview}>
-            <Eye className="mr-2 h-4 w-4" />
-            Focus
-          </Button>
-        </div>
-        <iframe title={`${title} inline preview`} src={previewAssetUrl} className="h-[460px] w-full" />
-      </div>
-    )
-  }
-
-  if (type === "document") {
+  if (resolvedType === "document") {
     return (
       <DocumentAssetPreview
         url={previewAssetUrl}
         title={title}
-        fileName={fileName}
+        fileName={resolvedFileName}
         formatLabel={resolvedFormatLabel}
         description={description}
         compact
@@ -711,17 +808,22 @@ function InlineDeliveryHero({
     )
   }
 
-  if (type === "contract" || type === "code" || type === "data" || type === "spreadsheet") {
+  if (
+    resolvedType === "contract" ||
+    resolvedType === "code" ||
+    resolvedType === "data" ||
+    resolvedType === "spreadsheet"
+  ) {
     return (
       <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/50">
             <FileText className="h-4 w-4 text-indigo-300" />
-            {type === "contract"
+            {resolvedType === "contract"
               ? "Structured contract preview"
-              : type === "spreadsheet"
+              : resolvedType === "spreadsheet"
                 ? "Structured spreadsheet preview"
-                : type === "data"
+                : resolvedType === "data"
                   ? "Structured data preview"
                   : "Structured code preview"}
           </div>
@@ -891,16 +993,8 @@ export function OrderDeliveryWorkspace({
     [deliveryUrl, primaryDeliveryAsset?.fileName, primaryDeliveryAsset?.title, primaryDeliveryFormatLabel, serviceTitle],
   )
   const primaryDeliveryDownloadFileName = useMemo(
-    () =>
-      resolveDownloadFileName({
-        url: deliveryUrl,
-        fileName: primaryDeliveryAsset?.fileName ?? null,
-        formatLabel: primaryDeliveryFormatLabel,
-        title:
-          primaryDeliveryAsset?.title ??
-          (serviceTitle ? `${serviceTitle} delivery` : "Final delivery"),
-      }),
-    [deliveryUrl, primaryDeliveryAsset?.fileName, primaryDeliveryAsset?.title, primaryDeliveryFormatLabel, serviceTitle],
+    () => primaryDeliveryAsset?.fileName ?? null,
+    [primaryDeliveryAsset?.fileName],
   )
   const defaultTab = hasDelivery
     ? "delivery"
@@ -1038,14 +1132,24 @@ export function OrderDeliveryWorkspace({
                       Open Delivery
                     </Link>
                   ) : primaryDeliveryDownloadHref ? (
-                    <a
-                      href={primaryDeliveryDownloadHref}
-                      download={primaryDeliveryDownloadFileName}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!deliveryUrl) {
+                          return
+                        }
+
+                        void downloadDeliverableToDevice({
+                          rawUrl: deliveryUrl,
+                          fileName: primaryDeliveryDownloadFileName,
+                          formatLabel: primaryDeliveryFormatLabel,
+                        })
+                      }}
                       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Download Delivery
-                    </a>
+                    </button>
                   ) : null}
                 </div>
               ) : null}
@@ -1178,19 +1282,24 @@ export function OrderDeliveryWorkspace({
                         Preview
                       </Button>
                     </div>
-                    <a
-                      href={
-                        primaryDeliveryType === "deployment"
-                          ? deliveryUrl
-                          : (primaryDeliveryDownloadHref ?? deliveryUrl)
-                      }
-                      target={primaryDeliveryType === "deployment" ? "_blank" : undefined}
-                      rel={primaryDeliveryType === "deployment" ? "noreferrer" : undefined}
-                      download={
-                        primaryDeliveryType === "deployment"
-                          ? undefined
-                          : (primaryDeliveryDownloadFileName ?? undefined)
-                      }
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (primaryDeliveryType === "deployment") {
+                          window.open(deliveryUrl, "_blank", "noopener,noreferrer")
+                          return
+                        }
+
+                        if (!deliveryUrl) {
+                          return
+                        }
+
+                        void downloadDeliverableToDevice({
+                          rawUrl: deliveryUrl,
+                          fileName: primaryDeliveryDownloadFileName,
+                          formatLabel: primaryDeliveryFormatLabel,
+                        })
+                      }}
                       className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-indigo-300 underline decoration-indigo-500/40 underline-offset-4 transition hover:text-indigo-200"
                     >
                       {primaryDeliveryType === "deployment" ? (
@@ -1199,7 +1308,7 @@ export function OrderDeliveryWorkspace({
                         <Download className="h-4 w-4" />
                       )}
                       {primaryDeliveryAsset?.fileName ?? deliveryUrl}
-                    </a>
+                    </button>
                   </div>
                 ) : null}
 
@@ -1228,12 +1337,7 @@ export function OrderDeliveryWorkspace({
                             formatLabel: assetFormatLabel,
                             title: asset.title,
                           })
-                          const assetDownloadFileName = resolveDownloadFileName({
-                            url: asset.url,
-                            fileName: asset.fileName,
-                            formatLabel: assetFormatLabel,
-                            title: asset.title,
-                          })
+                          const assetDownloadFileName = asset.fileName ?? undefined
 
                           return (
                             <div
@@ -1279,14 +1383,20 @@ export function OrderDeliveryWorkspace({
                                     Open
                                   </Link>
                                 ) : assetDownloadHref ? (
-                                  <a
-                                    href={assetDownloadHref}
-                                    download={assetDownloadFileName}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void downloadDeliverableToDevice({
+                                        rawUrl: asset.url,
+                                        fileName: assetDownloadFileName,
+                                        formatLabel: assetFormatLabel,
+                                      })
+                                    }
                                     className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
                                   >
                                     <Download className="h-3.5 w-3.5" />
                                     Download
-                                  </a>
+                                  </button>
                                 ) : null}
                               </div>
                             </div>
@@ -1366,14 +1476,8 @@ export function OrderDeliveryWorkspace({
                       primaryVersionAsset?.title ??
                       `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
                   })
-                  const versionDownloadFileName = resolveDownloadFileName({
-                    url: version.deliveryUrl,
-                    fileName: primaryVersionAsset?.fileName ?? null,
-                    formatLabel: versionFormatLabel,
-                    title:
-                      primaryVersionAsset?.title ??
-                      `${serviceTitle ?? "Delivery"} v${version.versionNumber}`,
-                  })
+                  const versionDownloadFileName =
+                    primaryVersionAsset?.fileName ?? undefined
 
                   return (
                     <div
@@ -1447,14 +1551,20 @@ export function OrderDeliveryWorkspace({
                                 Open Version
                               </Link>
                             ) : versionDownloadHref ? (
-                              <a
-                                href={versionDownloadHref}
-                                download={versionDownloadFileName}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void downloadDeliverableToDevice({
+                                    rawUrl: version.deliveryUrl!,
+                                    fileName: versionDownloadFileName,
+                                    formatLabel: versionFormatLabel,
+                                  })
+                                }
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/78 transition hover:bg-white/10 hover:text-white"
                               >
                                 <Download className="h-3.5 w-3.5" />
                                 Download Version
-                              </a>
+                              </button>
                             ) : null}
                           </div>
                         ) : null}

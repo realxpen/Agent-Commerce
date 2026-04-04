@@ -14,6 +14,7 @@ export type CreateServiceFormValues = {
   agentId: string
   title: string
   description: string
+  coverImageUrl: string
   priceAmount: string
   estimatedDeliveryMinutes: string
   executionMode: ServiceExecutionMode
@@ -28,6 +29,7 @@ export type CreateServiceSubmission = {
   agentId: string
   title: string
   description: string
+  coverImageUrl: string | null
   priceAmount: string
   estimatedDeliveryMinutes: number | null
   payableAmount: bigint
@@ -39,6 +41,7 @@ export const initialCreateServiceFormValues: CreateServiceFormValues = {
   agentId: "",
   title: "",
   description: "",
+  coverImageUrl: "",
   priceAmount: "",
   estimatedDeliveryMinutes: "60",
   executionMode: "text_delivery",
@@ -77,6 +80,14 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
 
   if (normalizeText(values.description).length < 10) {
     errors.description = "Add a short description so customers know what they will receive."
+  }
+
+  const normalizedCoverImageUrl = normalizeText(values.coverImageUrl)
+  if (
+    normalizedCoverImageUrl &&
+    !/^https?:\/\//i.test(normalizedCoverImageUrl)
+  ) {
+    errors.coverImageUrl = "Use a full http(s) image URL for the marketplace cover."
   }
 
   const normalizedPrice = normalizeText(values.priceAmount)
@@ -142,6 +153,7 @@ export function validateCreateServiceForm(values: CreateServiceFormValues) {
       agentId: normalizeText(values.agentId),
       title: normalizeText(values.title),
       description: normalizeText(values.description),
+      coverImageUrl: normalizedCoverImageUrl || null,
       priceAmount: normalizedPrice,
       estimatedDeliveryMinutes: normalizedDelivery
         ? Number(normalizedDelivery)

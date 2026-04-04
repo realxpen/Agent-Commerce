@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useDeferredValue, useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import {
   Bot,
   Box,
@@ -25,7 +25,10 @@ import {
   Table2,
   Video,
 } from "lucide-react"
-import { DeliverablePreviewDialog } from "@/components/deliverables/DeliverablePreviewDialog"
+import {
+  DeliverablePreviewDialog,
+  inferPreviewAssetType,
+} from "@/components/deliverables/DeliverablePreviewDialog"
 import { WalletRouteGuard } from "@/components/guards"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,7 +43,9 @@ import {
 } from "@/hooks/dashboard/useDashboardDeliverables"
 import {
   buildDeliverableDownloadUrl,
-  inferDeliverableFileName,
+  downloadDeliverableToDevice,
+  fetchDeliverableMetadata,
+  getDeliverableExtension,
 } from "@/lib/deliverables/file-access"
 import { cn } from "@/lib/utils"
 
@@ -154,6 +159,72 @@ const statusMeta = {
   },
 } as const
 
+function useResolvedDeliverableItem(item: DashboardDeliverableItem) {
+  const [resolvedItem, setResolvedItem] = useState(item)
+
+  useEffect(() => {
+    let mounted = true
+    const rawUrl = item.previewUrl ?? item.downloadUrl
+
+    setResolvedItem(item)
+
+    if (!rawUrl) {
+      return () => {
+        mounted = false
+      }
+    }
+
+    const needsResolution =
+      !item.fileName || item.formatLabel === "LINK" || item.formatLabel === "FILE"
+
+    if (!needsResolution) {
+      return () => {
+        mounted = false
+      }
+    }
+
+    fetchDeliverableMetadata(rawUrl)
+      .then((metadata) => {
+        if (!mounted || !metadata) {
+          return
+        }
+
+        const fileName = metadata.fileName ?? item.fileName
+        const formatLabel =
+          getDeliverableExtension({
+            fileName,
+            url: rawUrl,
+            formatLabel: item.formatLabel,
+          })?.toUpperCase() ?? item.formatLabel
+        const type = inferPreviewAssetType({
+          previewUrl: item.previewUrl,
+          downloadUrl: item.downloadUrl,
+          fileName,
+          formatLabel,
+          title: item.title,
+        }) as DashboardDeliverableType
+
+        setResolvedItem({
+          ...item,
+          fileName,
+          formatLabel,
+          type,
+        })
+      })
+      .catch(() => {
+        if (mounted) {
+          setResolvedItem(item)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [item])
+
+  return resolvedItem
+}
+
 function DeliverableStatusBadge({
   status,
 }: {
@@ -185,13 +256,6 @@ function DeliverableActions({
     fileName: item.fileName,
     formatLabel: item.formatLabel,
   })
-  const downloadFileName = inferDeliverableFileName({
-    url: item.downloadUrl,
-    fileName: item.fileName,
-    fallbackTitle: item.title,
-    formatLabel: item.formatLabel,
-  })
-
   return (
     <div className="flex items-center gap-2">
       {item.previewUrl ? (
@@ -207,14 +271,24 @@ function DeliverableActions({
       ) : null}
 
       {downloadUrl ? (
-        <Button asChild variant="ghost" size="icon" className="h-9 w-9 text-white/45 hover:text-white">
-          <a
-            href={downloadUrl}
-            download={downloadFileName}
-            title="Download deliverable"
-          >
-            <Download className="h-4 w-4" />
-          </a>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-white/45 hover:text-white"
+          title="Download deliverable"
+          onClick={() => {
+            if (!item.downloadUrl) {
+              return
+            }
+
+            void downloadDeliverableToDevice({
+              rawUrl: item.downloadUrl,
+              fileName: item.fileName,
+              formatLabel: item.formatLabel,
+            })
+          }}
+        >
+          <Download className="h-4 w-4" />
         </Button>
       ) : null}
 
@@ -232,7 +306,8 @@ function DeliverableGridCard({
   item: DashboardDeliverableItem
   onPreview: (item: DashboardDeliverableItem) => void
 }) {
-  const meta = typeMeta[item.type]
+  const resolvedItem = useResolvedDeliverableItem(item)
+  const meta = typeMeta[resolvedItem.type]
   const Icon = meta.icon
 
   return (
@@ -244,14 +319,14 @@ function DeliverableGridCard({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-              {item.formatLabel}
-            </span>
-            {item.artifactCount > 1 ? (
-              <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-                {item.artifactCount} Files
-              </span>
-            ) : null}
+                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+                      {resolvedItem.formatLabel}
+                    </span>
+                    {resolvedItem.artifactCount > 1 ? (
+                      <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+                        {resolvedItem.artifactCount} Files
+                      </span>
+                    ) : null}
           </div>
         </div>
 
@@ -301,7 +376,7 @@ function DeliverableGridCard({
             {meta.label}
           </div>
 
-          <DeliverableActions item={item} onPreview={onPreview} />
+          <DeliverableActions item={resolvedItem} onPreview={onPreview} />
         </div>
       </CardContent>
     </Card>
@@ -315,7 +390,8 @@ function DeliverableListRow({
   item: DashboardDeliverableItem
   onPreview: (item: DashboardDeliverableItem) => void
 }) {
-  const meta = typeMeta[item.type]
+  const resolvedItem = useResolvedDeliverableItem(item)
+  const meta = typeMeta[resolvedItem.type]
   const Icon = meta.icon
 
   return (
@@ -338,11 +414,11 @@ function DeliverableListRow({
           <p className="line-clamp-2 text-sm leading-6 text-white/45">{item.description}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-              {item.formatLabel}
+              {resolvedItem.formatLabel}
             </span>
-            {item.artifactCount > 1 ? (
+            {resolvedItem.artifactCount > 1 ? (
               <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-                {item.artifactCount} files
+                {resolvedItem.artifactCount} files
               </span>
             ) : null}
             <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
@@ -364,7 +440,7 @@ function DeliverableListRow({
 
         <div className="flex flex-wrap items-center justify-between gap-3 xl:justify-end">
           <DeliverableStatusBadge status={item.status} />
-          <DeliverableActions item={item} onPreview={onPreview} />
+          <DeliverableActions item={resolvedItem} onPreview={onPreview} />
         </div>
       </div>
     </Card>

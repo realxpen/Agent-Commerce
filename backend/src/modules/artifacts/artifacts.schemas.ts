@@ -8,5 +8,6 @@ export const artifactParamsSchema = z.object({
 
 export const artifactQuerySchema = z.object({
   download: trimmedString.optional(),
+  meta: trimmedString.optional(),
   preview: z.enum(["html"]).optional(),
 });
