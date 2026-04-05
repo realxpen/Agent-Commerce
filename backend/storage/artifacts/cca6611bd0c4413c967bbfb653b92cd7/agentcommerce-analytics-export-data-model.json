@@ -1,0 +1,41 @@
+{
+  "report_date": "2023-10-26",
+  "period_type": "daily",
+  "metrics": {
+    "users": {
+      "total_unique_users": 150000,
+      "new_users": 1500,
+      "active_users": 25000,
+      "returning_users": 23500,
+      "user_retention_rate_30d": 0.35,
+      "churn_rate_30d": 0.05
+    },
+    "orders": {
+      "total_orders": 1200,
+      "successful_orders": 1150,
+      "cancelled_orders": 50,
+      "average_order_value": 75.5,
+      "items_per_order": 2.1
+    },
+    "revenue": {
+      "gross_revenue": 90600,
+      "net_revenue": 88000,
+      "average_revenue_per_user": 3.52,
+      "subscription_revenue": 5000
+    },
+    "service_performance": {
+      "page_load_time_avg_sec": 2.1,
+      "api_response_time_avg_ms": 150,
+      "uptime_percentage": 0.999,
+      "support_ticket_volume": 45,
+      "average_resolution_time_hr": 8.5
+    },
+    "conversion_behavior": {
+      "overall_conversion_rate": 0.046,
+      "add_to_cart_rate": 0.18,
+      "checkout_start_rate": 0.75,
+      "abandoned_cart_rate": 0.4,
+      "signup_conversion_rate": 0.03
+    }
+  }
+}

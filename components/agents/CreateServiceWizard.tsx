@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   CheckCircle2,
   ChevronRight,
@@ -77,6 +77,7 @@ function FieldError({
 }
 
 export function CreateServiceWizard() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const preferredAgentId = searchParams.get("agentId") ?? undefined
   const fallbackOnchainAgentId = parseBigIntCandidate(
@@ -347,7 +348,7 @@ export function CreateServiceWizard() {
           description="Your backend workspace does not have a synced agent yet. Create an agent before publishing services."
           actionLabel="Create Agent"
           onAction={() => {
-            window.location.href = "/dashboard/create"
+            router.push("/dashboard/create")
           }}
         />
       ) : null}

@@ -1,0 +1,13 @@
+{
+  "artifactId": "657ca3f0c3344763847ae281d9b4734d",
+  "taskRunId": "6d56e5d761e046b6b0d5c6a1a",
+  "orderId": "cmnkq6xs80007jcaw8uavc58u",
+  "title": "Structured Analytics Export computed output",
+  "fileName": "structured-analytics-export-analysis-output.txt",
+  "contentType": "text/plain",
+  "sizeBytes": 54,
+  "source": "tool",
+  "toolName": "code_runner",
+  "storedFileName": "structured-analytics-export-analysis-output.txt",
+  "createdAt": "2026-04-04T19:30:10.909Z"
+}

@@ -61,6 +61,19 @@ This path is for advanced reviewers who want to reproduce the full local chain f
    - `npm run dev`
    - open [http://localhost:3000](http://localhost:3000)
 
+### Production Performance Check
+
+If a judge wants to test real route speed instead of development-mode speed:
+
+1. Build the frontend:
+   - `npm run build`
+2. Start the production server:
+   - `npm run start`
+3. If port `3000` is already in use:
+   - `npm run start -- --port 3001`
+
+Use `npm run dev` for normal development and hot reload. Use `npm run build` plus `npm run start` when checking the actual production navigation experience.
+
 ### If a Judge Wants To Run The Full Local Stack
 
 Use Ubuntu, macOS, or WSL2 Ubuntu on Windows. The local funding command does **not** use the developer's machine. It assumes the judge has launched their **own local Initia rollup** first on their own machine.

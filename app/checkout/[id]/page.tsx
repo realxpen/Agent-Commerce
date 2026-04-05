@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Lock } from "lucide-react"
 import { useMemo, useState } from "react"
 import { WalletActionButton } from "@/components/guards"
@@ -29,6 +29,7 @@ import {
 } from "@/lib/services/presets"
 
 export default function CheckoutPage() {
+  const router = useRouter()
   const params = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const { isSessionActive } = useSession()
@@ -138,7 +139,7 @@ export default function CheckoutPage() {
               description="Older non-working services have been retired from AgentCommerce. Only the verified working preset services can be ordered now."
               actionLabel="Back to Marketplace"
               onAction={() => {
-                window.location.href = "/marketplace"
+                router.push("/marketplace")
               }}
             />
           </div>

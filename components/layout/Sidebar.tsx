@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { 
@@ -21,6 +20,7 @@ import {
   Zap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AppLink } from "@/components/layout/AppLink"
 import { BrandMark } from "@/components/layout/BrandMark"
 import { Button } from "@/components/ui/button"
 import { useSessionApproval } from "@/hooks/session"
@@ -238,7 +238,7 @@ export function Sidebar() {
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
           return (
-            <Link
+            <AppLink
               key={item.href}
               href={item.href}
               className={cn(
@@ -253,7 +253,7 @@ export function Sidebar() {
                 isActive ? "text-indigo-400" : "text-white/20 group-hover:text-white/60"
               )} />
               {item.name}
-            </Link>
+            </AppLink>
           )
         })}
       </nav>

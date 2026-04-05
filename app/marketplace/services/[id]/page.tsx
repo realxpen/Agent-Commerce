@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import {
   CheckCircle2,
   Clock3,
@@ -42,6 +42,7 @@ function getPriceLabel(price: { amount: string; currency: string | null; denom: 
 }
 
 export default function MarketplaceServiceDetailsPage() {
+  const router = useRouter()
   const params = useParams<{ id: string }>()
   const serviceId = params?.id ?? ""
   const serviceQuery = useService(serviceId)
@@ -74,7 +75,7 @@ export default function MarketplaceServiceDetailsPage() {
             description={getApiErrorMessage(serviceQuery.error)}
             actionLabel="Back to Marketplace"
             onAction={() => {
-              window.location.href = "/marketplace"
+              router.push("/marketplace")
             }}
           />
         </main>
@@ -92,7 +93,7 @@ export default function MarketplaceServiceDetailsPage() {
             description="This older service is no longer part of the active preset catalog. The marketplace now only shows the verified working preset services."
             actionLabel="Back to Marketplace"
             onAction={() => {
-              window.location.href = "/marketplace"
+              router.push("/marketplace")
             }}
           />
         </main>

@@ -1,0 +1,2 @@
+Execution 1 (OUTCOME_OK)
+average_revenue_per_user=3.52
