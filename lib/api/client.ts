@@ -15,6 +15,9 @@ import type {
   CurrentAuthSessionDto,
   DashboardStatsDto,
   DataResponse,
+  DemoFaucetRequestDto,
+  DemoFaucetRequestInput,
+  DemoFaucetStatusDto,
   ListAgentsParams,
   ListCustomerOrdersParams,
   ListDashboardStatsParams,
@@ -454,6 +457,26 @@ export class AgentCommerceApiClient {
   ) {
     return this.request<DataResponse<AutoSignSessionApprovalDto | null>>(
       "/api/v1/session-approvals/auto-sign/use",
+      {
+        method: "POST",
+        body: input,
+        signal,
+      },
+    )
+  }
+
+  getDemoFaucetStatus(signal?: AbortSignal) {
+    return this.request<DataResponse<DemoFaucetStatusDto>>(
+      "/api/v1/demo-faucet/status",
+      {
+        signal,
+      },
+    )
+  }
+
+  requestDemoFaucet(input: DemoFaucetRequestInput = {}, signal?: AbortSignal) {
+    return this.request<DataResponse<DemoFaucetRequestDto>>(
+      "/api/v1/demo-faucet/request",
       {
         method: "POST",
         body: input,

@@ -28,7 +28,7 @@ export default function BridgePage() {
       }
     : !wallet.isOnExpectedAppchain
       ? {
-          label: "Switch to AgentCommerce Local Rollup",
+          label: `Switch to ${agentCommerceConfig.appchain.displayName}`,
           handler: () => void wallet.switchNetwork(),
         }
       : {
@@ -48,9 +48,9 @@ export default function BridgePage() {
         </h1>
         <p className="max-w-2xl text-sm text-white/50">
           This page now launches the real InterwovenKit bridge flow. For local
-          appchain funding, AgentCommerce pre-fills a public Initia testnet
-          source asset and hands the rest of the transfer to the live bridge
-          modal.
+          or public appchain funding, AgentCommerce pre-fills a public Initia
+          testnet source asset and hands the rest of the transfer to the live
+          bridge modal.
         </p>
       </div>
 
@@ -109,8 +109,7 @@ export default function BridgePage() {
                 {wallet.expectedNetworkLabel}
               </p>
               <p className="mt-2 text-sm text-white/50">
-                Chain ID {wallet.expectedChainId} on your local AgentCommerce
-                rollup.
+                Chain ID {wallet.expectedChainId} on {wallet.expectedNetworkLabel}.
               </p>
             </div>
           </div>
@@ -186,8 +185,10 @@ export default function BridgePage() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
             <p className="font-semibold text-white">Testing note</p>
             <p className="mt-2">
-              For local testing, fund from Initia Testnet into the local rollup.
-              Keep the wallet connected and on the AgentCommerce appchain before
+              For public deployments, bridge from Initia Testnet into
+              {` ${agentCommerceConfig.appchain.displayName}`}. For local
+              testing, you can still use the funding helper in Settings. Keep
+              the wallet connected and on the AgentCommerce appchain before
               launching the bridge for the smoothest handoff.
             </p>
             <div className="mt-3 inline-flex items-center gap-2 text-xs text-white/40">

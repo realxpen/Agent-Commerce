@@ -119,6 +119,10 @@ function getMetadataPath(uploadId: string) {
 }
 
 function buildUploadUrl(request: FastifyRequest, uploadId: string) {
+  if (env.BACKEND_PUBLIC_BASE_URL) {
+    return `${env.BACKEND_PUBLIC_BASE_URL}${env.API_PREFIX}/uploads/${uploadId}`;
+  }
+
   const host = request.headers.host ?? `localhost:${env.PORT}`;
   return `${request.protocol}://${host}${env.API_PREFIX}/uploads/${uploadId}`;
 }

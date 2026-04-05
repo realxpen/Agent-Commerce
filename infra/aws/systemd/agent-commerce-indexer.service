@@ -1,0 +1,15 @@
+[Unit]
+Description=AgentCommerce backend indexer
+After=network.target agent-commerce-backend.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/agent-commerce/backend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run start:indexer
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

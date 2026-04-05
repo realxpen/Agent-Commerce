@@ -7,6 +7,7 @@ import { artifactRoutes } from "../modules/artifacts/artifacts.routes.js";
 import { authRoutes } from "../modules/auth/auth.routes.js";
 import { contractEventRoutes } from "../modules/contract-events/contract-events.routes.js";
 import { dashboardRoutes } from "../modules/dashboard/dashboard.routes.js";
+import { demoFaucetRoutes } from "../modules/demo-faucet/demo-faucet.routes.js";
 import { healthRoutes } from "../modules/health/health.routes.js";
 import { orderRoutes } from "../modules/orders/orders.routes.js";
 import { paymentRoutes } from "../modules/payments/payments.routes.js";
@@ -45,6 +46,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
       await api.register(dashboardRoutes, {
         prefix: "/dashboard",
+      });
+
+      await api.register(demoFaucetRoutes, {
+        prefix: "/demo-faucet",
       });
 
       await api.register(orderRoutes, {

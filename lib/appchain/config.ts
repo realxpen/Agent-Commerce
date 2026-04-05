@@ -85,23 +85,11 @@ function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "")
 }
 
-function replaceUrlPort(url: string, port: string) {
-  try {
-    const nextUrl = new URL(url)
-    nextUrl.port = port
-    return trimTrailingSlash(nextUrl.toString())
-  } catch {
-    return trimTrailingSlash(url)
-  }
-}
-
 const appchainApiEndpoints = {
-  jsonRpc: trimTrailingSlash(env.appchainRpcUrl),
-  rpc: replaceUrlPort(env.appchainRpcUrl, "26657"),
-  // Use a same-origin proxy so browser-only wallet flows can reach local REST
-  // endpoints even when the rollup REST server does not send permissive CORS headers.
-  rest: "/api/appchain-rest",
-  indexer: replaceUrlPort(env.appchainRpcUrl, "8080"),
+  jsonRpc: trimTrailingSlash(env.appchainJsonRpcUrl),
+  rpc: trimTrailingSlash(env.appchainRpcUrl),
+  rest: trimTrailingSlash(env.appchainRestUrl),
+  indexer: trimTrailingSlash(env.appchainIndexerUrl),
 }
 
 export const agentCommerceConfig: FrontendSafeAppchainConfig = {
@@ -113,7 +101,7 @@ export const agentCommerceConfig: FrontendSafeAppchainConfig = {
     defaultSourceLabel: "Initia Testnet",
   },
   appchain: {
-    displayName: "AgentCommerce Local Rollup",
+    displayName: env.appchainDisplayName,
     chainId: env.appchainEvmChainId,
     interwovenChainId:
       env.appchainInterwovenChainId || String(env.appchainEvmChainId),

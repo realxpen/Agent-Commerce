@@ -5,23 +5,9 @@ import { getPublicEnv } from "@/lib/env"
 export const dynamic = "force-dynamic"
 const APPCHAIN_BECH32_PREFIX = "init"
 
-function trimTrailingSlash(value: string) {
-  return value.replace(/\/+$/, "")
-}
-
-function replaceUrlPort(url: string, port: string) {
-  try {
-    const nextUrl = new URL(url)
-    nextUrl.port = port
-    return trimTrailingSlash(nextUrl.toString())
-  } catch {
-    return trimTrailingSlash(url)
-  }
-}
-
 function getUpstreamRestBaseUrl() {
   const env = getPublicEnv()
-  return replaceUrlPort(env.appchainRpcUrl, "1317")
+  return env.appchainRestUrl.replace(/\/+$/, "")
 }
 
 function convertHexAddressToBech32(value: string) {

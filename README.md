@@ -108,11 +108,57 @@ bash .agents/skills/initia-appchain-dev/scripts/verify-appchain.sh --gas-station
 - **Default bridge source**: `initiation-2` with `uinit`
 - **Wallet behavior**: Initia Wallet can prompt users to connect and switch into the AgentCommerce network during app use
 
+## Public Deployment
+
+To make AgentCommerce public instead of localhost-only, expose three layers at the same time:
+
+1. **Frontend**
+   - Set `NEXT_PUBLIC_API_BASE_URL` to your public backend URL.
+2. **Backend**
+   - Set `CORS_ORIGIN`, `AUTH_MESSAGE_URI`, and `BACKEND_PUBLIC_BASE_URL` to your public frontend/backend URLs.
+3. **Appchain**
+   - Set:
+     - `NEXT_PUBLIC_APPCHAIN_RPC_URL` for public JSON-RPC
+     - `NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL` for Tendermint RPC
+     - `NEXT_PUBLIC_APPCHAIN_REST_URL` for REST
+     - `NEXT_PUBLIC_APPCHAIN_INDEXER_URL` for the indexer
+     - `NEXT_PUBLIC_APPCHAIN_DISPLAY_NAME` for the public network label shown in the wallet UI
+
+AgentCommerce now supports separate public chain endpoints, so you are no longer forced to derive everything from one localhost JSON-RPC URL.
+
+Ready-made templates:
+
+- frontend: [.env.production.example](C:/Users/HP/Documents/Agent-Commerce/.env.production.example)
+- backend: [backend/.env.production.example](C:/Users/HP/Documents/Agent-Commerce/backend/.env.production.example)
+- rollout guide: [docs/public-deployment.md](C:/Users/HP/Documents/Agent-Commerce/docs/public-deployment.md)
+- AWS deployment guide: [docs/aws-deployment.md](C:/Users/HP/Documents/Agent-Commerce/docs/aws-deployment.md)
+- Amplify build file: [amplify.yml](C:/Users/HP/Documents/Agent-Commerce/amplify.yml)
+- EC2 templates: [infra/aws/systemd/agent-commerce-backend.service](C:/Users/HP/Documents/Agent-Commerce/infra/aws/systemd/agent-commerce-backend.service), [infra/aws/systemd/agent-commerce-worker.service](C:/Users/HP/Documents/Agent-Commerce/infra/aws/systemd/agent-commerce-worker.service), [infra/aws/systemd/agent-commerce-indexer.service](C:/Users/HP/Documents/Agent-Commerce/infra/aws/systemd/agent-commerce-indexer.service), [infra/aws/nginx/agentcommerce.conf](C:/Users/HP/Documents/Agent-Commerce/infra/aws/nginx/agentcommerce.conf)
+
 ## Funding / Getting Gas
 
 - **Public flow**: get testnet `uinit` on `initiation-2`, then use the Initia Bridge to move funds into AgentCommerce.
 - **Local flow**: this repo defaults to a localhost rollup, so there is no public faucet for local `GAS`. Use a pre-funded local dev wallet when running the project locally.
 - **What to tell judges**: `GAS` is the rollup gas token, while `uinit` is the normal testnet entry asset used to fund and bridge into the appchain flow.
+
+### Public demo gas faucet
+
+If you want testers to fund themselves from the app UI instead of asking you to run `minitiad` manually, set these backend env vars on the public deployment:
+
+- `DEMO_FAUCET_ENABLED=true`
+- `DEMO_FAUCET_REQUIRE_AUTH=true`
+- `DEMO_FAUCET_CHAIN_ID=agentcommerce-1`
+- `DEMO_FAUCET_AMOUNT=10000000000000000000GAS`
+- `DEMO_FAUCET_KEY_NAME=gas-station`
+- `DEMO_FAUCET_KEYRING_BACKEND=test`
+- `DEMO_FAUCET_RATE_LIMIT_WINDOW_SECONDS=86400`
+- `DEMO_FAUCET_MAX_REQUESTS_PER_WINDOW=1`
+
+Optional:
+
+- `DEMO_FAUCET_ADMIN_TOKEN` to enable an admin-only manual top-up route
+
+With that enabled, testers can connect their wallet in `Dashboard -> Settings` and click the new `Request demo GAS` action instead of using shell commands.
 
 ### Local funding command
 

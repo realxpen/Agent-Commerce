@@ -16,10 +16,14 @@ type PublicEnvStatus = {
 }
 
 type PublicEnv = {
+  appchainJsonRpcUrl: string
   appchainRpcUrl: string
+  appchainRestUrl: string
+  appchainIndexerUrl: string
   appchainChainId: string
   appchainInterwovenChainId: string
   appchainEvmChainId: number
+  appchainDisplayName: string
   agentRegistryAddress: HexAddress
   serviceEscrowAddress: HexAddress
   apiBaseUrl: string
@@ -28,12 +32,30 @@ type PublicEnv = {
 
 let cachedPublicEnv: PublicEnv | null = null
 
-const FALLBACK_RPC_URL = "http://127.0.0.1:8545"
+const FALLBACK_JSON_RPC_URL = "http://127.0.0.1:8545"
+const FALLBACK_RPC_URL = "http://127.0.0.1:26657"
+const FALLBACK_REST_URL = "http://127.0.0.1:1317"
+const FALLBACK_INDEXER_URL = "http://127.0.0.1:8080"
 const FALLBACK_CHAIN_ID = 4273954181916632
 const FALLBACK_INTERWOVEN_CHAIN_ID = "agentcommerce-1"
+const FALLBACK_DISPLAY_NAME = "AgentCommerce"
 const FALLBACK_CONTRACT_ADDRESS =
   "0x0000000000000000000000000000000000000000" as HexAddress
 const FALLBACK_API_BASE_URL = "http://127.0.0.1:4000"
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "")
+}
+
+function replaceUrlPort(url: string, port: string) {
+  try {
+    const nextUrl = new URL(url)
+    nextUrl.port = port
+    return trimTrailingSlash(nextUrl.toString())
+  } catch {
+    return trimTrailingSlash(url)
+  }
+}
 
 function readEnvString(
   name: string,
@@ -116,12 +138,42 @@ export function getPublicEnv(): PublicEnv {
     invalidKeys: [] as string[],
   }
 
-  const appchainRpcUrl = readEnvString(
+  const appchainJsonRpcUrl = readEnvString(
     "NEXT_PUBLIC_APPCHAIN_RPC_URL",
     process.env.NEXT_PUBLIC_APPCHAIN_RPC_URL,
-    FALLBACK_RPC_URL,
+    FALLBACK_JSON_RPC_URL,
     issues,
     buckets,
+  )
+  const appchainRpcUrl = readEnvString(
+    "NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL",
+    process.env.NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL,
+    replaceUrlPort(appchainJsonRpcUrl, "26657"),
+    [],
+    {
+      missingKeys: [],
+      invalidKeys: [],
+    },
+  )
+  const appchainRestUrl = readEnvString(
+    "NEXT_PUBLIC_APPCHAIN_REST_URL",
+    process.env.NEXT_PUBLIC_APPCHAIN_REST_URL,
+    replaceUrlPort(appchainJsonRpcUrl, "1317"),
+    [],
+    {
+      missingKeys: [],
+      invalidKeys: [],
+    },
+  )
+  const appchainIndexerUrl = readEnvString(
+    "NEXT_PUBLIC_APPCHAIN_INDEXER_URL",
+    process.env.NEXT_PUBLIC_APPCHAIN_INDEXER_URL,
+    replaceUrlPort(appchainJsonRpcUrl, "8080"),
+    [],
+    {
+      missingKeys: [],
+      invalidKeys: [],
+    },
   )
   const appchainChainId = readEnvString(
     "NEXT_PUBLIC_APPCHAIN_CHAIN_ID",
@@ -134,6 +186,16 @@ export function getPublicEnv(): PublicEnv {
     "NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID",
     process.env.NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID,
     FALLBACK_INTERWOVEN_CHAIN_ID,
+    [],
+    {
+      missingKeys: [],
+      invalidKeys: [],
+    },
+  )
+  const appchainDisplayName = readEnvString(
+    "NEXT_PUBLIC_APPCHAIN_DISPLAY_NAME",
+    process.env.NEXT_PUBLIC_APPCHAIN_DISPLAY_NAME,
+    FALLBACK_DISPLAY_NAME,
     [],
     {
       missingKeys: [],
@@ -173,10 +235,14 @@ export function getPublicEnv(): PublicEnv {
   const apiReady = !buckets.missingKeys.includes("NEXT_PUBLIC_API_BASE_URL")
 
   cachedPublicEnv = {
+    appchainJsonRpcUrl,
     appchainRpcUrl,
+    appchainRestUrl,
+    appchainIndexerUrl,
     appchainChainId,
     appchainInterwovenChainId,
     appchainEvmChainId,
+    appchainDisplayName,
     agentRegistryAddress,
     serviceEscrowAddress,
     apiBaseUrl,

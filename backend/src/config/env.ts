@@ -55,7 +55,33 @@ const envSchema = z.object({
     const trimmed = value.trim();
     return trimmed === "" ? undefined : trimmed;
   }, z.string().url().optional()),
+  NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL: z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().url().optional()),
+  NEXT_PUBLIC_APPCHAIN_REST_URL: z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().url().optional()),
+  NEXT_PUBLIC_APPCHAIN_INDEXER_URL: z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().url().optional()),
   NEXT_PUBLIC_APPCHAIN_CHAIN_ID: optionalNonEmptyString,
+  NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID: optionalNonEmptyString,
+  NEXT_PUBLIC_APPCHAIN_DISPLAY_NAME: optionalNonEmptyString,
   NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS: optionalNonEmptyString,
   NEXT_PUBLIC_SERVICE_ESCROW_ADDRESS: optionalNonEmptyString,
   INDEXER_EVM_RPC_URL: z.preprocess((value) => {
@@ -130,6 +156,17 @@ const envSchema = z.object({
   UPLOAD_STORAGE_DIR: z.string().min(1).default("storage/uploads"),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
   ARTIFACT_STORAGE_DIR: z.string().min(1).default("storage/artifacts"),
+  DEMO_FAUCET_ENABLED: z.coerce.boolean().default(false),
+  DEMO_FAUCET_REQUIRE_AUTH: z.coerce.boolean().default(true),
+  DEMO_FAUCET_CLI_PATH: z.string().min(1).default("minitiad"),
+  DEMO_FAUCET_CHAIN_ID: optionalNonEmptyString,
+  DEMO_FAUCET_AMOUNT: optionalNonEmptyString,
+  DEMO_FAUCET_KEY_NAME: z.string().min(1).default("gas-station"),
+  DEMO_FAUCET_KEYRING_BACKEND: z.string().min(1).default("test"),
+  DEMO_FAUCET_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(86400),
+  DEMO_FAUCET_MAX_REQUESTS_PER_WINDOW: z.coerce.number().int().positive().default(1),
+  DEMO_FAUCET_ALLOWED_ADDRESS_PREFIX: z.string().min(1).default("init"),
+  DEMO_FAUCET_ADMIN_TOKEN: optionalNonEmptyString,
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -141,6 +178,10 @@ if (!parsed.success) {
 
 export const env = {
   ...parsed.data,
+  INITIA_RPC_URL:
+    parsed.data.INITIA_RPC_URL ??
+    parsed.data.NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL ??
+    null,
   INDEXER_EVM_RPC_URL:
     parsed.data.INDEXER_EVM_RPC_URL ?? parsed.data.NEXT_PUBLIC_APPCHAIN_RPC_URL ?? null,
   INDEXER_CHAIN_ID:
@@ -157,6 +198,15 @@ export const env = {
     parsed.data.BACKEND_PUBLIC_BASE_URL ??
     parsed.data.NEXT_PUBLIC_API_BASE_URL ??
     `http://localhost:${parsed.data.PORT}`,
+  DEMO_FAUCET_CHAIN_ID:
+    parsed.data.DEMO_FAUCET_CHAIN_ID ??
+    parsed.data.NEXT_PUBLIC_APPCHAIN_INTERWOVEN_CHAIN_ID ??
+    null,
+  DEMO_FAUCET_AMOUNT:
+    parsed.data.DEMO_FAUCET_AMOUNT ??
+    (parsed.data.INDEXER_NATIVE_TOKEN_DENOM
+      ? `10000000000000000000${parsed.data.INDEXER_NATIVE_TOKEN_DENOM}`
+      : null),
 } as const;
 
 export type Env = typeof env;
