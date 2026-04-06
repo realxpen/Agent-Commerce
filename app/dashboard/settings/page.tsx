@@ -8,10 +8,12 @@ import {
   Wallet,
 } from "lucide-react"
 import { SessionApprovalCard } from "@/components/session"
+import { StatusNoticeCard } from "@/components/states"
 import { InitiaUsernameLookupCard } from "@/components/wallet/InitiaUsernameLookupCard"
 import { LocalDemoFundingCard } from "@/components/wallet/LocalDemoFundingCard"
 import { WalletAccountCard } from "@/components/wallet/WalletAccountCard"
 import { useBackendAuth } from "@/hooks/auth"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import { useSessionApproval } from "@/hooks/session"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
 import { Badge } from "@/components/ui/badge"
@@ -61,14 +63,19 @@ function StatusCard({
 export default function SettingsPage() {
   const session = useSessionApproval({ surface: "settings" })
   const auth = useBackendAuth()
+  const backendAvailability = usePublicBackendAvailability()
   const wallet = useWalletConnectionFlow()
 
-  const backendStatus = auth.isAuthenticated
+  const backendStatus = !backendAvailability.canUseLiveData
+    ? "Preview only"
+    : auth.isAuthenticated
     ? "Unlocked"
     : auth.isSigningIn
       ? "Unlocking"
       : "Locked"
-  const backendTone = auth.isAuthenticated
+  const backendTone = !backendAvailability.canUseLiveData
+    ? ("warning" as const)
+    : auth.isAuthenticated
     ? ("success" as const)
     : ("warning" as const)
   const autoSignTone =
@@ -104,7 +111,9 @@ export default function SettingsPage() {
           eyebrow="Backend Sync"
           title={backendStatus}
           body={
-            auth.isAuthenticated
+            !backendAvailability.canUseLiveData
+              ? `${backendAvailability.description} Backend sync will unlock here once the public backend is deployed.`
+              : auth.isAuthenticated
               ? "Protected creator data is unlocked for the connected wallet, so dashboard, order, and treasury actions can sync to your backend account."
               : "Unlock backend sync with one wallet signature before expecting live creator data or session approvals to sync across the app."
           }
@@ -179,63 +188,79 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
-          <SessionApprovalCard surface="settings" />
+          {backendAvailability.canUseLiveData ? (
+            <SessionApprovalCard surface="settings" />
+          ) : (
+            <StatusNoticeCard
+              tone="warning"
+              title="Smooth actions stay on the live backend stack for now"
+              description={`${backendAvailability.description} The public frontend can still show wallet surfaces, but live session sync, backend approvals, and on-chain follow-up actions stay tied to the local or self-hosted deployment until the backend rollout is finished.`}
+            />
+          )}
 
-          <Card className="glass-card border-white/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Activity className="size-5 text-indigo-300" />
-                <div>
-                  <CardTitle className="text-lg">Current approval scope</CardTitle>
-                  <CardDescription className="text-white/45">
-                    Live values from the connected wallet and synced backend session.
-                  </CardDescription>
+          {backendAvailability.canUseLiveData ? (
+            <Card className="glass-card border-white/5">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Activity className="size-5 text-indigo-300" />
+                  <div>
+                    <CardTitle className="text-lg">Current approval scope</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Live values from the connected wallet and synced backend session.
+                    </CardDescription>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
-                  Coverage
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {session.session.scopeLabel}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
-                  Limits
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {session.session.limitLabel}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
-                  Backend sync
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {session.session.backendSyncStatus === "synced"
-                    ? "Session details are synced to the backend."
-                    : session.session.backendSyncStatus === "pending"
-                      ? "Wallet approval is active and backend sync is still finishing."
-                      : session.session.backendSyncStatus === "error"
-                        ? "Wallet approval is active, but backend sync needs another retry."
-                        : "No backend session approval is stored yet."}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
-                  Session window
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {session.isSessionActive
-                    ? session.sessionRemainingLabel
-                    : "Not active yet"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                    Coverage
+                  </p>
+                  <p className="mt-2 text-sm text-white/85">
+                    {session.session.scopeLabel}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                    Limits
+                  </p>
+                  <p className="mt-2 text-sm text-white/85">
+                    {session.session.limitLabel}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                    Backend sync
+                  </p>
+                  <p className="mt-2 text-sm text-white/85">
+                    {session.session.backendSyncStatus === "synced"
+                      ? "Session details are synced to the backend."
+                      : session.session.backendSyncStatus === "pending"
+                        ? "Wallet approval is active and backend sync is still finishing."
+                        : session.session.backendSyncStatus === "error"
+                          ? "Wallet approval is active, but backend sync needs another retry."
+                          : "No backend session approval is stored yet."}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                    Session window
+                  </p>
+                  <p className="mt-2 text-sm text-white/85">
+                    {session.isSessionActive
+                      ? session.sessionRemainingLabel
+                      : "Not active yet"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <StatusNoticeCard
+              tone="warning"
+              title="Public backend deployment is the next milestone"
+              description="The live Amplify frontend is public now, but this settings page is still waiting on a reachable public backend and rollup stack for real backend sync, faucet requests, and stored approval state."
+            />
+          )}
         </div>
       </div>
     </div>

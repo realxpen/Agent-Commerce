@@ -19,7 +19,12 @@ import { SkeletonBlock, StatusNoticeCard } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAgent, useService } from "@/hooks/api"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import { getApiErrorMessage, getApiErrorTitle } from "@/lib/api"
+import {
+  findDemoMarketplaceAgentById,
+  findDemoMarketplaceServiceById,
+} from "@/lib/marketplace/demo-catalog"
 import {
   buildMarketplaceServiceHref,
   getMarketplaceDiscoveryCategory,
@@ -45,14 +50,21 @@ export default function MarketplaceServiceDetailsPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const serviceId = params?.id ?? ""
-  const serviceQuery = useService(serviceId)
-  const service = serviceQuery.data?.data ?? null
-  const agentQuery = useAgent(service?.agentId, {
-    enabled: Boolean(service?.agentId),
+  const backendAvailability = usePublicBackendAvailability()
+  const serviceQuery = useService(serviceId, {
+    enabled: backendAvailability.canUseLiveData,
   })
-  const agent = agentQuery.data?.data ?? null
+  const service = backendAvailability.canUseLiveData
+    ? serviceQuery.data?.data ?? null
+    : findDemoMarketplaceServiceById(serviceId)
+  const agentQuery = useAgent(service?.agentId, {
+    enabled: backendAvailability.canUseLiveData && Boolean(service?.agentId),
+  })
+  const agent = backendAvailability.canUseLiveData
+    ? agentQuery.data?.data ?? null
+    : findDemoMarketplaceAgentById(service?.agentId)
 
-  if (serviceQuery.isLoading) {
+  if (backendAvailability.isChecking || (backendAvailability.canUseLiveData && serviceQuery.isLoading)) {
     return (
       <div className="min-h-screen bg-black pb-24 text-white">
         <main className="container mx-auto px-4 pt-28 sm:px-6">
@@ -65,7 +77,25 @@ export default function MarketplaceServiceDetailsPage() {
     )
   }
 
-  if (serviceQuery.isError || !service) {
+  if (!backendAvailability.canUseLiveData && !service) {
+    return (
+      <div className="min-h-screen bg-black pb-24 text-white">
+        <main className="container mx-auto px-4 pt-28 sm:px-6">
+          <StatusNoticeCard
+            tone="warning"
+            title={backendAvailability.title}
+            description={`${backendAvailability.description} This listing is only available when the live backend is online, so head back to the marketplace preview for the verified demo catalog.`}
+            actionLabel="Back to Marketplace"
+            onAction={() => {
+              router.push("/marketplace")
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  if (backendAvailability.canUseLiveData && (serviceQuery.isError || !service)) {
     return (
       <div className="min-h-screen bg-black pb-24 text-white">
         <main className="container mx-auto px-4 pt-28 sm:px-6">
@@ -81,6 +111,10 @@ export default function MarketplaceServiceDetailsPage() {
         </main>
       </div>
     )
+  }
+
+  if (!service) {
+    return null
   }
 
   if (!isWorkingServicePresetTitle(service.title)) {
@@ -111,7 +145,7 @@ export default function MarketplaceServiceDetailsPage() {
   )
 
   const checkoutHref =
-    agent && service
+    backendAvailability.canUseLiveData && agent && service
       ? buildCheckoutHref({
           agent,
           service,
@@ -131,6 +165,16 @@ export default function MarketplaceServiceDetailsPage() {
       </header>
 
       <main className="container mx-auto px-4 pt-28 sm:px-6">
+        {!backendAvailability.canUseLiveData ? (
+          <div className="mb-6">
+            <StatusNoticeCard
+              tone="warning"
+              title={backendAvailability.title}
+              description={`${backendAvailability.description} You can preview this curated preset listing here, but checkout stays disabled until the public backend and appchain endpoints are deployed.`}
+            />
+          </div>
+        ) : null}
+
         <div className="grid gap-8 xl:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-6">
             <MarketplaceListingVisual
@@ -237,7 +281,11 @@ export default function MarketplaceServiceDetailsPage() {
                     </Link>
                   </Button>
                 ) : (
-                  <Button disabled>Order this service</Button>
+                  <Button disabled>
+                    {backendAvailability.canUseLiveData
+                      ? "Order this service"
+                      : "Checkout comes with the public backend"}
+                  </Button>
                 )}
                 <Button asChild variant="outline" className="border-white/10 bg-white/5">
                   <Link href={buildMarketplaceServiceHref(service.id)}>Refresh listing</Link>
@@ -264,7 +312,7 @@ export default function MarketplaceServiceDetailsPage() {
                 <Badge variant="outline" className="w-fit border-white/10 bg-white/5 text-white/60">
                   {agent?.category ?? service.agent?.category ?? "Marketplace agent"}
                 </Badge>
-                {agent ? (
+                {agent && backendAvailability.canUseLiveData ? (
                   <Button asChild variant="outline" className="border-white/10 bg-white/5">
                     <Link href={`/agent/${agent.id}`}>
                       <ExternalLink className="mr-2 h-4 w-4" />

@@ -2,7 +2,12 @@
 
 import { useDeferredValue, useMemo, useState } from "react"
 import { useAgents, useServices } from "@/hooks/api"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import type { AgentDto, AgentServiceDto } from "@/lib/api/types"
+import {
+  demoMarketplaceAgents,
+  demoMarketplaceServices,
+} from "@/lib/marketplace/demo-catalog"
 import {
   allMarketplaceCategoriesLabel,
   getMarketplaceDiscoveryCategory,
@@ -162,22 +167,39 @@ export function useMarketplaceCatalog() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(allMarketplaceCategoriesLabel)
   const deferredSearchQuery = useDeferredValue(searchQuery.trim())
+  const backendAvailability = usePublicBackendAvailability()
+  const shouldUseLiveCatalog = backendAvailability.canUseLiveData
 
   const agentsQuery = useAgents({
     status: "ACTIVE",
     page: 1,
     pageSize: 50,
+  }, {
+    enabled: shouldUseLiveCatalog,
   })
   const servicesQuery = useServices({
     status: "ACTIVE",
     page: 1,
     pageSize: 50,
+  }, {
+    enabled: shouldUseLiveCatalog,
   })
 
-  const agents = agentsQuery.data?.data ?? []
+  const agents = useMemo(
+    () =>
+      shouldUseLiveCatalog
+        ? agentsQuery.data?.data ?? []
+        : [...demoMarketplaceAgents],
+    [agentsQuery.data?.data, shouldUseLiveCatalog],
+  )
   const services = useMemo(
-    () => filterWorkingPresetServices(servicesQuery.data?.data ?? []),
-    [servicesQuery.data?.data],
+    () =>
+      filterWorkingPresetServices(
+        shouldUseLiveCatalog
+          ? servicesQuery.data?.data ?? []
+          : [...demoMarketplaceServices],
+      ),
+    [servicesQuery.data?.data, shouldUseLiveCatalog],
   )
 
   const agentsById = useMemo(() => {
@@ -371,10 +393,17 @@ export function useMarketplaceCatalog() {
     }
   }, [enrichedServices, marketplaceAgents])
 
-  const isLoading = agentsQuery.isLoading || servicesQuery.isLoading
-  const isFetching = agentsQuery.isFetching || servicesQuery.isFetching
-  const isError = agentsQuery.isError || servicesQuery.isError
-  const error = agentsQuery.error ?? servicesQuery.error
+  const isLoading =
+    backendAvailability.isChecking ||
+    (shouldUseLiveCatalog && (agentsQuery.isLoading || servicesQuery.isLoading))
+  const isFetching =
+    (shouldUseLiveCatalog && (agentsQuery.isFetching || servicesQuery.isFetching)) ||
+    backendAvailability.isChecking
+  const isError =
+    shouldUseLiveCatalog && (agentsQuery.isError || servicesQuery.isError)
+  const error = shouldUseLiveCatalog
+    ? agentsQuery.error ?? servicesQuery.error
+    : null
 
   return {
     searchQuery,
@@ -394,12 +423,18 @@ export function useMarketplaceCatalog() {
     discoveryLanes,
     servicesByAgent,
     metrics,
+    backendAvailability,
+    isDemoMode: !shouldUseLiveCatalog,
     isLoading,
     isFetching,
     isError,
     error,
     refetch: async () => {
-      await Promise.all([agentsQuery.refetch(), servicesQuery.refetch()])
+      await Promise.all([
+        backendAvailability.refetch(),
+        shouldUseLiveCatalog ? agentsQuery.refetch() : Promise.resolve(null),
+        shouldUseLiveCatalog ? servicesQuery.refetch() : Promise.resolve(null),
+      ])
     },
   }
 }

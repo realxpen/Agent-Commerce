@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react"
 import { useBackendAuth } from "@/hooks/auth"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import { Button } from "@/components/ui/button"
 import { WalletStatusBadge } from "@/components/wallet/WalletStatusBadge"
 import { useWalletConnectionFlow } from "@/hooks/wallet"
@@ -51,6 +52,7 @@ export function WalletAccountCard({
     walletStatusDescription,
   } = useWalletConnectionFlow()
   const auth = useBackendAuth()
+  const backendAvailability = usePublicBackendAvailability()
   const visibleUsername = resolvedUsername
   const visibleInitUsername = resolvedInitUsername
   const hasDirectUsername = Boolean(username)
@@ -242,12 +244,16 @@ export function WalletAccountCard({
               Backend Sync
             </p>
             <p className="mt-1 text-sm text-white">
-              {auth.isAuthenticated
+              {!backendAvailability.canUseLiveData
+                ? "Public backend rollout next"
+                : auth.isAuthenticated
                 ? "Creator data is unlocked"
                 : "Unlock creator actions"}
             </p>
             <p className="mt-1 text-xs text-white/45">
-              {auth.isAuthenticated
+              {!backendAvailability.canUseLiveData
+                ? backendAvailability.description
+                : auth.isAuthenticated
                 ? "Protected backend actions now follow your connected wallet."
                 : "Sign one wallet message so drafts, orders, and dashboard data can sync to your account."}
             </p>
@@ -266,6 +272,15 @@ export function WalletAccountCard({
             <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200">
               Backend synced for {auth.currentSession?.user.displayName ?? "this wallet"}
             </div>
+          ) : !backendAvailability.canUseLiveData ? (
+            <Button
+              size={compact ? "sm" : "default"}
+              type="button"
+              variant="glass"
+              disabled
+            >
+              Public backend soon
+            </Button>
           ) : (
             <Button
               onClick={() => void auth.signIn()}

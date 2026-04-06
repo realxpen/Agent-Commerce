@@ -40,6 +40,12 @@ This file packages the current deployment proof for AgentCommerce in a form that
 - **Submission helper script**: [contracts/script/PrintSubmissionInfo.s.sol](C:/Users/HP/Documents/Agent-Commerce/contracts/script/PrintSubmissionInfo.s.sol)
 - **Frontend runtime config**: [.env.local](C:/Users/HP/Documents/Agent-Commerce/.env.local)
 
+## Public Frontend Preview
+
+- **Live frontend URL**: [main.d1kz6c4m7fkyqg.amplifyapp.com](https://main.d1kz6c4m7fkyqg.amplifyapp.com)
+- **What this proves today**: judges can open the public Next.js frontend and inspect the marketplace, wallet surfaces, settings UX, and overall product direction without cloning the repo first
+- **What still remains**: the backend API, demo faucet, and public rollup endpoints required for live checkout and synced dashboard flows
+
 ## What This Evidence Proves
 
 - AgentCommerce is wired as its own Initia EVM rollup frontend

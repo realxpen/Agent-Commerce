@@ -15,6 +15,7 @@ import { TransactionStatusCard } from "@/components/orders/TransactionStatusCard
 import { useSession } from "@/components/providers/SessionProvider"
 import { SessionApprovalCard } from "@/components/session"
 import { useService, useServices } from "@/hooks/api"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import { useCreateOrder, useOrderReferenceUploads } from "@/hooks/orders"
 import type { OrderReference } from "@/lib/api/types"
 import {
@@ -33,6 +34,7 @@ export default function CheckoutPage() {
   const params = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const { isSessionActive } = useSession()
+  const backendAvailability = usePublicBackendAvailability()
   const [customerNote, setCustomerNote] = useState("")
   const [customerReferences, setCustomerReferences] = useState<OrderReference[]>([])
 
@@ -40,7 +42,9 @@ export default function CheckoutPage() {
     serviceId: params.id,
     searchParams,
   })
-  const serviceQuery = useService(params.id)
+  const serviceQuery = useService(params.id, {
+    enabled: backendAvailability.canUseLiveData,
+  })
   const sameAgentServicesQuery = useServices(
     {
       agentId: serviceQuery.data?.data.agentId,
@@ -49,7 +53,9 @@ export default function CheckoutPage() {
       pageSize: 12,
     },
     {
-      enabled: Boolean(serviceQuery.data?.data.agentId),
+      enabled:
+        backendAvailability.canUseLiveData &&
+        Boolean(serviceQuery.data?.data.agentId),
     },
   )
   const activeServicesQuery = useServices(
@@ -59,7 +65,7 @@ export default function CheckoutPage() {
       pageSize: 24,
     },
     {
-      enabled: true,
+      enabled: backendAvailability.canUseLiveData,
     },
   )
   const checkout = hydrateCheckoutContextFromService({
@@ -114,6 +120,51 @@ export default function CheckoutPage() {
   const backHref = checkout.agentSlug
     ? `/agent/${checkout.backendAgentId}`
     : "/marketplace"
+
+  if (backendAvailability.isChecking) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-2xl">
+            <StatusNoticeCard
+              title="Checking public checkout"
+              description="AgentCommerce is confirming whether this deployment can reach the live backend before opening checkout."
+            />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (!backendAvailability.canUseLiveData) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
+          <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+            <HeaderBackLink href="/marketplace" label="Back" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium">
+              <Lock className="w-3 h-3" />
+              <span>Frontend preview</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center p-6 pt-32">
+          <div className="w-full max-w-2xl">
+            <StatusNoticeCard
+              tone="warning"
+              title={backendAvailability.title}
+              description={`${backendAvailability.description} This public deployment is currently a frontend-only preview, so live checkout still stays on the local or self-hosted backend and appchain stack.`}
+              actionLabel="Back to Marketplace"
+              onAction={() => {
+                router.push("/marketplace")
+              }}
+            />
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   if (
     serviceQuery.data?.data &&

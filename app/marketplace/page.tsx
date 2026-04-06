@@ -159,9 +159,11 @@ function LaneStoryChip({
 function MarketplaceFeedCard({
   service,
   index,
+  previewMode = false,
 }: {
   service: MarketplaceCatalogService
   index: number
+  previewMode?: boolean
 }) {
   const agent = service.marketAgent
   const detailHref = buildMarketplaceServiceHref(service.id)
@@ -263,7 +265,7 @@ function MarketplaceFeedCard({
               {getPriceLabel(service)}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {checkoutHref ? (
+              {!previewMode && checkoutHref ? (
                 <Button
                   asChild
                   size="sm"
@@ -273,7 +275,7 @@ function MarketplaceFeedCard({
                 </Button>
               ) : (
                 <Button size="sm" disabled className="w-full rounded-xl sm:w-auto">
-                  Order Now
+                  {previewMode ? "Checkout coming with backend" : "Order Now"}
                 </Button>
               )}
               <Button
@@ -309,9 +311,20 @@ function MarketplaceFeedCard({
           <Button asChild variant="ghost" size="sm" className="rounded-full text-white/65 hover:bg-white/10 hover:text-white">
             <Link href={detailHref}>Details</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm" className="rounded-full text-white/65 hover:bg-white/10 hover:text-white">
-            <Link href={`/agent/${agent?.id ?? service.agentId}`}>Agent</Link>
-          </Button>
+          {previewMode ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              className="rounded-full text-white/35"
+            >
+              Agent
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="sm" className="rounded-full text-white/65 hover:bg-white/10 hover:text-white">
+              <Link href={`/agent/${agent?.id ?? service.agentId}`}>Agent</Link>
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -407,16 +420,29 @@ export default function MarketplacePage() {
 
           <div className="flex items-center gap-3">
             <WalletSessionControls surface="agent_profile" showSessionStatus={false} />
-            <Link href="/dashboard" className="hidden sm:block">
+            <Link
+              href={catalog.isDemoMode ? "/dashboard/settings" : "/dashboard"}
+              className="hidden sm:block"
+            >
               <Button variant="ghost" size="sm" className="rounded-full text-white/70 hover:bg-white/10 hover:text-white">
                 Dashboard
               </Button>
             </Link>
-            <Link href="/dashboard/create">
-              <Button size="sm" className="rounded-full bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:bg-indigo-700">
+            {catalog.isDemoMode ? (
+              <Button
+                size="sm"
+                disabled
+                className="rounded-full bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+              >
                 Create Service
               </Button>
-            </Link>
+            ) : (
+              <Link href="/dashboard/create">
+                <Button size="sm" className="rounded-full bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:bg-indigo-700">
+                  Create Service
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -569,6 +595,14 @@ export default function MarketplacePage() {
             </div>
           </div>
 
+          {catalog.isDemoMode ? (
+            <StatusNoticeCard
+              tone="warning"
+              title={catalog.backendAvailability.title}
+              description={`${catalog.backendAvailability.description} The public Amplify link is currently a frontend preview, so the marketplace below uses the verified preset catalog while live checkout, orders, backend sync, and faucet flows stay on the local or self-hosted stack.`}
+            />
+          ) : null}
+
           {featuredVisualServices.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
               {featuredVisualServices.slice(0, 2).map((service) => (
@@ -679,7 +713,12 @@ export default function MarketplacePage() {
               <div className="space-y-6">
                 {feedServices.length > 0 ? (
                   feedServices.map((service, index) => (
-                    <MarketplaceFeedCard key={service.id} service={service} index={index} />
+                    <MarketplaceFeedCard
+                      key={service.id}
+                      service={service}
+                      index={index}
+                      previewMode={catalog.isDemoMode}
+                    />
                   ))
                 ) : (
                   <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-white/50">
@@ -691,7 +730,12 @@ export default function MarketplacePage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {catalog.filteredServices.length > 0 ? (
                   catalog.filteredServices.map((service, index) => (
-                    <MarketplaceServiceCard key={service.id} service={service} index={index} />
+                    <MarketplaceServiceCard
+                      key={service.id}
+                      service={service}
+                      index={index}
+                      previewMode={catalog.isDemoMode}
+                    />
                   ))
                 ) : (
                   <div className="col-span-full rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-white/50">
@@ -758,11 +802,22 @@ export default function MarketplacePage() {
                         </span>
                       </div>
                     </div>
-                    <Link href={`/agent/${agent.id}`}>
-                      <Button variant="outline" size="sm" className="h-8 rounded-full border-white/10 bg-transparent text-xs hover:bg-white/10">
-                        View
+                    {catalog.isDemoMode ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        className="h-8 rounded-full border-white/10 bg-transparent text-xs"
+                      >
+                        Preview
                       </Button>
-                    </Link>
+                    ) : (
+                      <Link href={`/agent/${agent.id}`}>
+                        <Button variant="outline" size="sm" className="h-8 rounded-full border-white/10 bg-transparent text-xs hover:bg-white/10">
+                          View
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 ))}
               </div>

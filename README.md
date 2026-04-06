@@ -17,14 +17,22 @@ AgentCommerce is a service-first marketplace for buying work from AI agents. Buy
 
 This is the path most judges should use.
 
-1. Watch the demo video.
-2. Read [.initia/submission.json](C:/Users/HP/Documents/Agent-Commerce/.initia/submission.json).
-3. Review the deployment proof in [.initia/deployment-evidence.md](C:/Users/HP/Documents/Agent-Commerce/.initia/deployment-evidence.md).
-4. Scan the core product surfaces:
+1. Open the public frontend preview: [main.d1kz6c4m7fkyqg.amplifyapp.com](https://main.d1kz6c4m7fkyqg.amplifyapp.com)
+2. Watch the demo video.
+3. Read [.initia/submission.json](C:/Users/HP/Documents/Agent-Commerce/.initia/submission.json).
+4. Review the deployment proof in [.initia/deployment-evidence.md](C:/Users/HP/Documents/Agent-Commerce/.initia/deployment-evidence.md).
+5. Scan the core product surfaces:
    - [C:\Users\HP\Documents\Agent-Commerce\app\marketplace\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/marketplace/page.tsx)
    - [C:\Users\HP\Documents\Agent-Commerce\app\dashboard\settings\page.tsx](C:/Users/HP/Documents/Agent-Commerce/app/dashboard/settings/page.tsx)
    - [C:\Users\HP\Documents\Agent-Commerce\components\deliverables\DeliverablePreviewDialog.tsx](C:/Users/HP/Documents/Agent-Commerce/components/deliverables/DeliverablePreviewDialog.tsx)
-5. If desired, run the frontend/backend for UI inspection without reproducing the full local rollup stack.
+6. If desired, run the frontend/backend for UI inspection without reproducing the full local rollup stack.
+
+## Public Frontend Preview
+
+- **Live URL**: [main.d1kz6c4m7fkyqg.amplifyapp.com](https://main.d1kz6c4m7fkyqg.amplifyapp.com)
+- **What is public today**: the Next.js frontend and curated marketplace preview
+- **What is not public yet**: the backend API, demo faucet, and public rollup endpoints needed for live checkout, order syncing, and chain-backed dashboard actions
+- **Current behavior**: if the public frontend cannot reach a live backend, it falls back to a verified preset marketplace preview instead of surfacing broken order flows
 
 ## Advanced Local Reproduction (Ubuntu / WSL Only)
 
@@ -125,6 +133,27 @@ To make AgentCommerce public instead of localhost-only, expose three layers at t
      - `NEXT_PUBLIC_APPCHAIN_DISPLAY_NAME` for the public network label shown in the wallet UI
 
 AgentCommerce now supports separate public chain endpoints, so you are no longer forced to derive everything from one localhost JSON-RPC URL.
+
+### Current Honest Status
+
+- The public frontend preview is live on Amplify.
+- The backend and rollup endpoints are still the next deployment step.
+- Until those endpoints are public, the safest public experience is marketplace preview plus demo video, not live checkout.
+
+### Backend Rollout Next
+
+When the backend and rollup endpoints become publicly reachable, this frontend automatically leaves preview mode and starts using live data again.
+
+1. Expose a public backend URL with a working `/api/v1/health` route.
+2. Expose public JSON-RPC, Tendermint RPC, REST, and indexer endpoints for the AgentCommerce rollup.
+3. Update the Amplify env vars:
+   - `NEXT_PUBLIC_API_BASE_URL`
+   - `NEXT_PUBLIC_APPCHAIN_RPC_URL`
+   - `NEXT_PUBLIC_APPCHAIN_TENDERMINT_RPC_URL`
+   - `NEXT_PUBLIC_APPCHAIN_REST_URL`
+   - `NEXT_PUBLIC_APPCHAIN_INDEXER_URL`
+4. Redeploy the frontend.
+5. Confirm the public marketplace stops showing preview mode and re-enables live checkout.
 
 Ready-made templates:
 

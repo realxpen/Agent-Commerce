@@ -30,10 +30,12 @@ export function MarketplaceServiceCard({
   service,
   index,
   accentLabel,
+  previewMode = false,
 }: {
   service: MarketplaceCatalogService
   index: number
   accentLabel?: string | null
+  previewMode?: boolean
 }) {
   const agent = service.marketAgent
   const detailHref = buildMarketplaceServiceHref(service.id)
@@ -233,13 +235,13 @@ export function MarketplaceServiceCard({
         </div>
 
         <div className="mt-6 flex items-center gap-3 pt-1">
-          {checkoutHref ? (
+          {!previewMode && checkoutHref ? (
             <Button asChild className="flex-1 bg-indigo-600 text-white hover:bg-indigo-500">
               <Link href={checkoutHref}>Hire Service</Link>
             </Button>
           ) : (
             <Button disabled className="flex-1">
-              Hire Service
+              {previewMode ? "Checkout coming with backend" : "Hire Service"}
             </Button>
           )}
 

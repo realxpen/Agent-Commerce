@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react"
 import { useBackendAuth } from "@/hooks/auth"
+import { usePublicBackendAvailability } from "@/hooks/deployment/usePublicBackendAvailability"
 import { useWalletAccount } from "@/hooks/wallet"
 import { useWalletConnectionFlow } from "@/hooks/wallet/useWalletConnectionFlow"
 import { agentCommerceApi, getApiErrorMessage } from "@/lib/api"
@@ -36,6 +37,7 @@ export function LocalDemoFundingCard() {
   const wallet = useWalletAccount()
   const walletFlow = useWalletConnectionFlow()
   const auth = useBackendAuth()
+  const backendAvailability = usePublicBackendAvailability()
   const [copiedValue, setCopiedValue] = useState<string | null>(null)
   const [faucetStatus, setFaucetStatus] = useState<DemoFaucetStatusDto | null>(null)
   const [lastFunding, setLastFunding] = useState<DemoFaucetRequestDto | null>(null)
@@ -99,7 +101,7 @@ export function LocalDemoFundingCard() {
   )
 
   useEffect(() => {
-    if (!agentCommerceConfig.status.apiReady) {
+    if (!agentCommerceConfig.status.apiReady || !backendAvailability.canUseLiveData) {
       return
     }
 
@@ -132,7 +134,7 @@ export function LocalDemoFundingCard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [backendAvailability.canUseLiveData])
 
   async function copyValue(value: string, key: string) {
     if (!value) {
@@ -193,22 +195,39 @@ export function LocalDemoFundingCard() {
           <Badge variant="outline" className="border-white/10 bg-white/[0.03]">
             {agentCommerceConfig.appchain.interwovenChainId}
           </Badge>
+          {!backendAvailability.canUseLiveData ? (
+            <Badge
+              variant="outline"
+              className="border-amber-500/20 bg-amber-500/10 text-amber-200"
+            >
+              Frontend preview
+            </Badge>
+          ) : null}
         </div>
         <CardTitle className="text-lg">
           Make the AgentCommerce network and demo gas easy to access
         </CardTitle>
         <CardDescription className="text-white/45">
-          Share the live network values below with public testers, let them
-          switch into the right chain, and expose self-serve `GAS` when the
-          backend faucet is enabled on your public deployment.
+          {backendAvailability.canUseLiveData
+            ? "Share the live network values below with public testers, let them switch into the right chain, and expose self-serve `GAS` when the backend faucet is enabled on your public deployment."
+            : `${backendAvailability.description} Keep the live gas, backend sync, and public chain rollout on your local or self-hosted stack until those endpoints are actually online.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="flex items-center gap-2 text-white/70">
             <Network className="size-4 text-indigo-300" />
-            <p className="text-sm font-semibold">Public network values</p>
+            <p className="text-sm font-semibold">
+              {backendAvailability.canUseLiveData
+                ? "Public network values"
+                : "Current preview configuration"}
+            </p>
           </div>
+          <p className="mt-3 text-sm leading-relaxed text-white/55">
+            {backendAvailability.canUseLiveData
+              ? "These are the live values testers can copy into wallet or infra tooling."
+              : "These values reflect the current frontend config, but they are not confirmed public endpoints for testers yet."}
+          </p>
           <div className="mt-4 space-y-3">
             {networkFields.map((field) => (
               <div
@@ -223,24 +242,33 @@ export function LocalDemoFundingCard() {
                     {field.value}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() => void copyValue(field.value, field.key)}
-                >
-                  {copiedValue === field.key ? (
-                    <>
-                      <CheckCircle2 className="mr-2 size-4 text-emerald-300" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-2 size-4" />
-                      Copy
-                    </>
-                  )}
-                </Button>
+                {backendAvailability.canUseLiveData ? (
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    onClick={() => void copyValue(field.value, field.key)}
+                  >
+                    {copiedValue === field.key ? (
+                      <>
+                        <CheckCircle2 className="mr-2 size-4 text-emerald-300" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-2 size-4" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="border-white/10 bg-white/[0.03] text-white/50"
+                  >
+                    Preview only
+                  </Badge>
+                )}
               </div>
             ))}
           </div>
@@ -249,6 +277,7 @@ export function LocalDemoFundingCard() {
               size="sm"
               type="button"
               variant="glass"
+              disabled={!backendAvailability.canUseLiveData}
               onClick={() =>
                 void (walletFlow.isConnected
                   ? walletFlow.switchNetwork()
@@ -261,6 +290,7 @@ export function LocalDemoFundingCard() {
               size="sm"
               type="button"
               variant="outline"
+              disabled={!backendAvailability.canUseLiveData}
               onClick={() =>
                 void walletFlow.openBridge({
                   srcChainId: agentCommerceConfig.bridge.defaultSourceChainId,
@@ -284,6 +314,28 @@ export function LocalDemoFundingCard() {
               <Loader2 className="size-4 animate-spin text-indigo-300" />
               Checking whether this deployment exposes a public demo faucet.
             </div>
+          ) : !backendAvailability.canUseLiveData ? (
+            <>
+              <p className="mt-3 text-sm leading-relaxed text-white/60">
+                {backendAvailability.description} The public faucet stays off
+                until the backend and chain endpoints are live.
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-white/10 bg-white/[0.03]"
+                >
+                  Faucet off
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-white/10 bg-white/[0.03]"
+                >
+                  Backend rollout next
+                </Badge>
+              </div>
+            </>
           ) : (
             <>
               <p className="mt-3 text-sm leading-relaxed text-white/60">
@@ -443,10 +495,9 @@ export function LocalDemoFundingCard() {
         </div>
 
         <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4 text-sm leading-relaxed text-amber-100/75">
-          Public testers only need the network values above plus a faucet-backed
-          `GAS` balance. Local shells and `minitiad` are only for self-hosted
-          environments. If you expose a bridge and public rollup endpoints, the
-          app can handle wallet connect and network switching from the UI.
+          {backendAvailability.canUseLiveData
+            ? "Public testers only need the network values above plus a faucet-backed `GAS` balance. Local shells and `minitiad` are only for self-hosted environments. If you expose a bridge and public rollup endpoints, the app can handle wallet connect and network switching from the UI."
+            : "This Amplify deployment is best treated as a frontend preview right now. Use the local or self-hosted stack for live gas, backend sync, and end-to-end wallet flows until the public backend and rollup endpoints are online."}
           <div className="mt-3">
             <a
               className="inline-flex items-center gap-2 text-amber-100 hover:text-white"
