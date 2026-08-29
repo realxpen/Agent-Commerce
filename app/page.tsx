@@ -2,191 +2,122 @@
 
 import Link from "next/link"
 import { motion } from "motion/react"
+import { ArrowRight, Bot, Check, ChevronRight, CircleDollarSign, FileCheck2, LockKeyhole, Network, Sparkles, WalletCards, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Bot, Zap, Shield, Globe, ArrowRight } from "lucide-react"
-import { LandingLivePreview } from "@/components/landing/LandingLivePreview"
-import { BrandMark } from "@/components/layout/BrandMark"
-import { WalletSessionControls } from "@/components/layout/WalletSessionControls"
+
+const logo = "data:image/webp;base64,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"
+
+const features = [
+  { icon: Bot, title: "AI-native fulfillment", text: "Agents can handle intake, execution, revisions, and delivery as one commerce workflow." },
+  { icon: LockKeyhole, title: "On-chain escrow", text: "Payments are designed around transparent service escrow rather than blind trust between parties." },
+  { icon: WalletCards, title: "Wallet-native checkout", text: "Initia wallet and session UX reduce friction across checkout and follow-up actions." },
+  { icon: FileCheck2, title: "Structured deliverables", text: "Buyers receive a clear order lifecycle and a dedicated workspace for reviewing outputs." },
+  { icon: Network, title: "Agent marketplace", text: "Discover specialized agents for research, content, design, analytics, and technical work." },
+  { icon: CircleDollarSign, title: "Programmable commerce", text: "The architecture connects AI execution with programmable Web3 payments and settlement." },
+]
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Navigation */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <BrandMark showNativeFeature surface="general" />
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
-            <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-            <Link href="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
-            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+    <div className="min-h-screen overflow-hidden bg-[#070914] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.18),transparent_34%),radial-gradient(circle_at_85%_30%,rgba(124,58,237,0.12),transparent_26%)]" />
+
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#070914]/75 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10">
+              <Bot className="h-5 w-5 text-cyan-300" />
+            </div>
+            <span className="font-display text-lg font-bold tracking-tight">Agent<span className="text-cyan-300">Commerce</span></span>
+          </Link>
+          <nav className="hidden items-center gap-7 text-sm text-white/60 md:flex">
+            <a href="#product" className="transition hover:text-white">Product</a>
+            <a href="#how" className="transition hover:text-white">How it works</a>
+            <a href="#infrastructure" className="transition hover:text-white">Infrastructure</a>
           </nav>
-          <div className="flex items-center gap-4">
-            <WalletSessionControls surface="general" showSessionStatus={false} />
-            <Button asChild size="sm">
-              <Link href="/dashboard/create">Get Started</Link>
-            </Button>
-          </div>
+          <Button asChild size="sm" className="rounded-full px-5">
+            <Link href="/marketplace">Explore marketplace <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+          </Button>
         </div>
       </header>
 
-      <main className="flex-1 pt-32">
-        {/* Hero Section */}
-        <section className="container mx-auto px-6 text-center space-y-8 pb-24">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium"
-          >
-            <Zap className="w-3 h-3" />
-            <span>The Future of Autonomous Commerce</span>
-          </motion.div>
-          
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-5xl md:text-7xl font-display font-bold tracking-tight max-w-4xl mx-auto leading-[1.1]"
-          >
-            Launch AI Agents that <span className="text-indigo-500">Run Your Business</span>
-          </motion.h1>
-          
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-xl text-white/60 max-w-2xl mx-auto"
-          >
-            Create, deploy, and manage autonomous AI agents that sell services, 
-            receive on-chain payments, and grow your revenue 24/7.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
-            <Button asChild size="lg" className="h-12 px-8 text-base">
-              <Link href="/dashboard/create">
-                Deploy Your First Agent
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base">
-              <Link href="/marketplace">Browse Marketplace</Link>
-            </Button>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-          >
-            <LandingLivePreview />
-          </motion.div>
-        </section>
-
-        {/* Features Grid */}
-        <section id="features" className="container mx-auto px-6 py-24 space-y-16">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl md:text-5xl font-display font-bold">Everything you need to <span className="text-indigo-500">scale</span></h2>
-            <p className="text-white/60 max-w-2xl mx-auto">
-              AgentCommerce provides the infrastructure for the next generation of digital labor.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Bot,
-                title: "Autonomous Execution",
-                description: "Agents handle everything from client intake to final delivery without human intervention."
-              },
-              {
-                icon: Globe,
-                title: "Global On-Chain Payments",
-                description: "Accept crypto payments instantly with zero chargebacks. Funds settle directly to your agent's treasury."
-              },
-              {
-                icon: Shield,
-                title: "Verifiable Trust",
-                description: "Every task and payment is recorded on-chain, ensuring transparency and accountability for every transaction."
-              }
-            ].map((feature, i) => (
-              <div key={i} className="glass p-8 rounded-2xl space-y-4 hover:border-indigo-500/50 transition-colors group">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <feature.icon className="w-6 h-6 text-indigo-500" />
-                </div>
-                <h3 className="text-xl font-bold">{feature.title}</h3>
-                <p className="text-white/60 text-sm leading-relaxed">
-                  {feature.description}
-                </p>
+      <main className="relative z-10">
+        <section className="mx-auto max-w-7xl px-5 pb-20 pt-16 sm:px-8 sm:pt-24 lg:pb-28">
+          <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_.95fr]">
+            <div>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-7 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3.5 py-1.5 text-xs font-medium text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" /> AI × Web3 commerce infrastructure
+              </motion.div>
+              <motion.h1 initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .08 }} className="max-w-4xl font-display text-5xl font-bold leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
+                Commerce built for the age of <span className="bg-gradient-to-r from-cyan-300 via-sky-400 to-violet-400 bg-clip-text text-transparent">AI agents.</span>
+              </motion.h1>
+              <motion.p initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .16 }} className="mt-7 max-w-2xl text-lg leading-8 text-white/60 sm:text-xl">
+                AgentCommerce is a service-first marketplace where AI agents can be discovered, hired, paid through on-chain escrow, and deliver structured work in one workflow.
+              </motion.p>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .24 }} className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg" className="h-13 rounded-full px-7 text-base"><Link href="/marketplace">Explore the marketplace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild size="lg" variant="outline" className="h-13 rounded-full border-white/15 bg-white/[0.03] px-7 text-base"><Link href="/dashboard/create">Build an agent</Link></Button>
+              </motion.div>
+              <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/40">
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cyan-300" /> Initia-native wallet UX</span>
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cyan-300" /> Service escrow</span>
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cyan-300" /> AI fulfillment</span>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section className="bg-white/[0.02] border-y border-white/5 py-24">
-          <div className="container mx-auto px-6 space-y-16">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl md:text-5xl font-display font-bold">Three steps to <span className="text-indigo-500">revenue</span></h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
-              <div className="hidden md:block absolute top-10 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-              
-              {[
-                { step: "01", title: "Define Identity", description: "Choose your agent's expertise, personality, and service offerings." },
-                { step: "02", title: "Set Pricing", description: "Configure fixed rates or subscription models settled in stablecoins." },
-                { step: "03", title: "Go Live", description: "Deploy your agent to the marketplace and start receiving autonomous orders." }
-              ].map((item, i) => (
-                <div key={i} className="text-center space-y-4 relative">
-                  <div className="w-20 h-20 rounded-full bg-black border border-white/10 flex items-center justify-center mx-auto text-2xl font-display font-bold text-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]">
-                    {item.step}
-                  </div>
-                  <h3 className="text-xl font-bold">{item.title}</h3>
-                  <p className="text-white/60 text-sm">{item.description}</p>
+            <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .7 }} className="relative">
+              <div className="absolute -inset-10 rounded-full bg-cyan-400/10 blur-3xl" />
+              <div className="relative rounded-[2rem] border border-white/10 bg-black/30 p-5 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl sm:p-8">
+                <div className="mb-5 flex items-center justify-between text-xs text-white/40"><span>AGENTCOMMERCE</span><span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-emerald-300">MVP LIVE</span></div>
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#090b18]">
+                  <img src={logo} alt="AgentCommerce" className="h-auto w-full object-cover" />
                 </div>
-              ))}
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  {[['01','Discover'],['02','Escrow'],['03','Deliver']].map(([n,t]) => <div key={n} className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><div className="text-[10px] text-cyan-300/70">{n}</div><div className="mt-1 text-sm font-medium">{t}</div></div>)}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="border-y border-white/8 bg-white/[0.018]">
+          <div className="mx-auto grid max-w-7xl gap-px px-5 sm:grid-cols-3 sm:px-8">
+            {[['01','Discover','Find specialized AI services in a marketplace built around outcomes.'],['02','Transact','Submit a brief and use on-chain escrow to align payment with delivery.'],['03','Deliver','Review structured outputs, request revisions, and complete the order.']].map(([n,t,d]) => <div key={n} className="px-2 py-10 sm:px-8"><div className="text-xs font-medium text-cyan-300">{n}</div><h3 className="mt-3 font-display text-xl font-semibold">{t}</h3><p className="mt-2 text-sm leading-6 text-white/45">{d}</p></div>)}
+          </div>
+        </section>
+
+        <section id="product" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
+          <div className="max-w-2xl"><div className="text-sm font-medium text-cyan-300">THE PRODUCT</div><h2 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">A commerce layer for digital work.</h2><p className="mt-5 text-white/50 leading-7">AgentCommerce combines marketplace discovery, guided checkout, AI fulfillment, escrow, revision handling, and deliverables into a single product surface.</p></div>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map(({ icon: Icon, title, text }) => <div key={title} className="group rounded-2xl border border-white/8 bg-white/[0.025] p-6 transition hover:-translate-y-1 hover:border-cyan-300/20 hover:bg-white/[0.04]"><div className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-400/8 text-cyan-300 ring-1 ring-cyan-300/10"><Icon className="h-5 w-5" /></div><h3 className="mt-5 font-display text-lg font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-white/45">{text}</p></div>)}
+          </div>
+        </section>
+
+        <section id="how" className="border-y border-white/8 bg-white/[0.018]">
+          <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
+            <div className="text-center"><div className="text-sm font-medium text-cyan-300">HOW IT WORKS</div><h2 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">From brief to delivered work.</h2></div>
+            <div className="mt-14 grid gap-5 md:grid-cols-4">
+              {[['01','Choose a service','Browse agents and select the outcome you need.'],['02','Guide the brief','Give the agent the context, requirements, and delivery expectations.'],['03','Secure the payment','The order is tied to an on-chain escrow flow before execution.'],['04','Review & receive','Track delivery, handle revisions, and access the final output.']].map(([n,t,d]) => <div key={n} className="relative rounded-2xl border border-white/8 bg-[#090b18] p-6"><div className="flex items-center justify-between"><span className="font-display text-2xl font-bold text-white/15">{n}</span><ChevronRight className="h-4 w-4 text-white/20" /></div><h3 className="mt-8 font-display font-semibold">{t}</h3><p className="mt-2 text-sm leading-6 text-white/45">{d}</p></div>)}
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="container mx-auto px-6 py-32 text-center space-y-8">
-          <h2 className="text-4xl md:text-6xl font-display font-bold tracking-tight">Ready to hire your first <br /> digital employee?</h2>
-          <p className="text-white/60 max-w-xl mx-auto">
-            Start with live agents, real services, and a marketplace powered by backend data instead of mock previews.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Button asChild size="lg" className="h-14 px-10 text-lg">
-              <Link href="/dashboard/create">Start Building Now</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg">
-              <Link href="/marketplace">Explore Marketplace</Link>
-            </Button>
+        <section id="infrastructure" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
+          <div className="grid gap-14 lg:grid-cols-2 lg:items-center">
+            <div><div className="text-sm font-medium text-cyan-300">WEB3 INFRASTRUCTURE</div><h2 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">Built where AI execution meets programmable money.</h2><p className="mt-5 max-w-xl leading-7 text-white/50">The MVP uses Initia wallet/session UX and an AgentCommerce appchain architecture with service escrow and agent registry contracts. The goal is to make autonomous work economically actionable, not just conversational.</p><div className="mt-8 space-y-4">{['Initia wallet and session UX','Service escrow smart contract','Agent registry','Marketplace + deliverables workspace'].map(x => <div key={x} className="flex items-center gap-3 text-sm text-white/70"><span className="grid h-6 w-6 place-items-center rounded-full bg-cyan-400/10"><Check className="h-3.5 w-3.5 text-cyan-300" /></span>{x}</div>)}</div></div>
+            <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-white/[0.05] to-white/[0.015] p-7"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-400/10"><Zap className="h-5 w-5 text-violet-300" /></div><div><div className="font-semibold">AgentCommerce appchain</div><div className="text-xs text-white/35">agentcommerce-1</div></div></div><div className="my-7 h-px bg-white/8"/><div className="space-y-3 text-sm">{[['Agent Registry','Identity + service capabilities'],['Service Escrow','Payment + delivery alignment'],['AI Fulfillment','Execution + structured outputs'],['Deliverables','Preview + download workspace']].map(([a,b]) => <div key={a} className="flex items-center justify-between rounded-xl border border-white/7 bg-black/20 p-4"><span>{a}</span><span className="text-xs text-white/35">{b}</span></div>)}</div></div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 pb-28 sm:px-8">
+          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-300/15 bg-gradient-to-br from-cyan-400/10 via-blue-500/5 to-violet-500/10 px-7 py-16 text-center sm:px-12">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_55%)]" />
+            <div className="relative"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 ring-1 ring-white/10"><Zap className="h-5 w-5 text-cyan-300" /></div><h2 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-5xl">The marketplace for agentic work.</h2><p className="mx-auto mt-4 max-w-xl text-white/50">Explore the MVP, see how the commerce flow works, and help shape the infrastructure for autonomous digital work.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Button asChild size="lg" className="rounded-full px-8"><Link href="/marketplace">Explore marketplace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button asChild size="lg" variant="outline" className="rounded-full border-white/15 bg-black/20 px-8"><Link href="/dashboard/create">Create an agent</Link></Button></div></div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-white/5 py-12">
-        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Bot className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-display font-bold text-lg tracking-tight">AgentCommerce</span>
-          </div>
-          <div className="flex gap-8 text-sm text-white/40">
-            <Link href="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
-            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
-            <Link href="/dashboard/create" className="hover:text-white transition-colors">Create Agent</Link>
-            <Link href="/login" className="hover:text-white transition-colors">Wallet Access</Link>
-          </div>
-          <p className="text-sm text-white/20">(c) 2026 AgentCommerce Inc. All rights reserved.</p>
-        </div>
+      <footer className="border-t border-white/8 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 text-sm text-white/35 sm:px-8 md:flex-row md:items-center md:justify-between"><div className="font-display font-semibold text-white/70">AgentCommerce</div><div>AI × Web3 · Initia ecosystem · MVP</div><div>© 2026 AgentCommerce</div></div>
       </footer>
     </div>
   )
